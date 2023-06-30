@@ -5,7 +5,7 @@
   <errmsg>OK</errmsg>
   <interval>0</interval>
     <entry type="predatasource">
-        <version>1688092288</version>
+        <version>1688099246</version>
         <name>LogicMonitor_Device_Alert_Statistics</name>
         <displayedas>LogicMonitor Device Alert Statistics</displayedas>
         <description>Tracks MTTR average over a rolling period of time.</description>
@@ -675,35 +675,6 @@ Map getProxyInfo() {
             <alertClearTransitionIval>0</alertClearTransitionIval>
         </datapoint>
         <datapoint>
-            <name>lookbackPeriod</name>
-            <originId>urQABo_sShemUaWmtR_RrA</originId>
-            <dataType>7</dataType>
-            <type>2</type>
-            <postprocessormethod>namevalue</postprocessormethod>
-            <postprocessorparam>##WILDVALUE##.lookbackPeriod</postprocessorparam>
-            <usevalue>output</usevalue>
-            <alertexpr></alertexpr>
-            <alertmissing>1</alertmissing>
-            <alertsubject></alertsubject>
-            <alertbody></alertbody>
-            <enableanomalyalertsuppression></enableanomalyalertsuppression>
-            <adadvsettingenabled>false</adadvsettingenabled>
-            <warnadadvsetting></warnadadvsetting>
-            <erroradadvsetting></erroradadvsetting>
-            <criticaladadvsetting></criticaladadvsetting>
-            <description>The number of days to look back when pulling cleared alerts. Defaults to 90 days</description>
-            <maxvalue></maxvalue>
-            <minvalue></minvalue>
-            <maxdigits>4</maxdigits>
-            <userparam1></userparam1>
-            <userparam2></userparam2>
-            <userparam3></userparam3>
-            <iscomposite>false</iscomposite>
-            <rpn></rpn>
-            <alertTransitionIval>0</alertTransitionIval>
-            <alertClearTransitionIval>0</alertClearTransitionIval>
-        </datapoint>
-        <datapoint>
             <name>longestAlertDuration</name>
             <originId>AYWoGj3lTy2h6hn5KNmCnA</originId>
             <dataType>7</dataType>
@@ -1059,6 +1030,35 @@ Map getProxyInfo() {
             <postprocessormethod>namevalue</postprocessormethod>
             <postprocessorparam>##WILDVALUE##.warnLongestAlertDuration</postprocessorparam>
             <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>executionTime</name>
+            <originId>CebraaVnQYu2g7djTrtKjQ</originId>
+            <dataType>4</dataType>
+            <type>2</type>
+            <postprocessormethod>none</postprocessormethod>
+            <postprocessorparam></postprocessorparam>
+            <usevalue>responseTime</usevalue>
             <alertexpr></alertexpr>
             <alertmissing>1</alertmissing>
             <alertsubject></alertsubject>
