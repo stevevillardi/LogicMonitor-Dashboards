@@ -1,0 +1,1267 @@
+{
+  "santabaRelease": 168,
+  "widgetTokens": [
+    {
+      "name": "apiID",
+      "value": "changeme"
+    },
+    {
+      "name": "apiKey",
+      "value": "changeme"
+    },
+    {
+      "name": "defaultResourceGroup",
+      "value": "Devices by Type/Windows Servers"
+    },
+    {
+      "name": "defaultResourceName",
+      "value": "*"
+    },
+    {
+      "name": "dynamicGroupParentID",
+      "value": "1"
+    },
+    {
+      "name": "hideDynamicGroupDropdown",
+      "value": "false"
+    }
+  ],
+  "name": "Dynamic Dashboard - Windows (Textbox Selector)",
+  "description": "",
+  "overwriteGroupFields": false,
+  "widgetsConfigVersion": 2,
+  "type": "dashboard",
+  "widgets": [
+    {
+      "position": {
+        "col": 1,
+        "sizex": 4,
+        "row": 15,
+        "sizey": 4
+      },
+      "config": {
+        "displaySettings": {},
+        "legend": "",
+        "maxValue": 100,
+        "dataPoint": {
+          "rpn": "",
+          "dataPointName": "CPUBusyPercent",
+          "instanceName": "*",
+          "dataSourceFullName": "CPU (Microsoft_Windows_CPU)",
+          "dataSeries": "average",
+          "aggregateFunction": "AVERAGE",
+          "deviceGroupFullPath": "##defaultResourceGroup##",
+          "deviceDisplayName": "##defaultResourceName##"
+        },
+        "description": "",
+        "displayUnit": "",
+        "type": "gauge",
+        "version": 2,
+        "minValue": 0,
+        "displayType": 0,
+        "peakTimeRange": "1day",
+        "showPeak": true,
+        "name": "Average CPU across all Windows Resources (Real-time)",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "timescale": "day",
+        "colorThresholds": [
+          {
+            "level": 2,
+            "threshold": 90,
+            "relation": ">="
+          },
+          {
+            "level": 3,
+            "threshold": 95,
+            "relation": ">="
+          }
+        ]
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 6,
+        "row": 13,
+        "sizey": 2
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Top Windows Disks by Read Operations (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 10,
+          "maxValue": "NaN",
+          "dataPoints": [{
+            "dataPointName": "DiskReadsPerSec",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "Physical Disks- (WinPhysicalDrive-)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME## ##INSTANCE##",
+              "type": "line",
+              "option": "custom"
+            },
+            "name": "DiskReadsPerSec",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "ReadOperations",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "default"
+        },
+        "type": "cgraph",
+        "timescale": "12hour",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 5,
+        "sizex": 8,
+        "row": 10,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Top Windows Disks by Total Operations (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "graphInfo": {
+          "virtualDataPoints": [{
+            "rpn": "DiskReadsPerSec+ DiskWritesPerSec",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME## ##INSTANCE##",
+              "type": "area",
+              "option": "custom"
+            },
+            "name": "TotalWritesPerSec"
+          }],
+          "minValue": 0,
+          "topX": 10,
+          "maxValue": "NaN",
+          "dataPoints": [
+            {
+              "dataPointName": "DiskReadsPerSec",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "Physical Disks- (WinPhysicalDrive-)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": null,
+                "legend": null,
+                "type": "line",
+                "option": "none"
+              },
+              "name": "DiskReadsPerSec",
+              "aggregateFunction": "SUM",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "##defaultResourceName##"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "##defaultResourceGroup##"
+              }
+            },
+            {
+              "dataPointName": "DiskWritesPerSec",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "Physical Disks- (WinPhysicalDrive-)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": null,
+                "legend": null,
+                "type": "line",
+                "option": "none"
+              },
+              "name": "DiskWritesPerSec",
+              "aggregateFunction": "SUM",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "##defaultResourceName##"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "##defaultResourceGroup##"
+              }
+            }
+          ],
+          "verticalLabel": "ReadOperations",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "default"
+        },
+        "type": "cgraph",
+        "timescale": "1day",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 7,
+        "sizex": 6,
+        "row": 13,
+        "sizey": 2
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Top Windows Disks by Write Operations (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 10,
+          "maxValue": "NaN",
+          "dataPoints": [{
+            "dataPointName": "DiskWritesPerSec",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "Physical Disks- (WinPhysicalDrive-)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME## ##INSTANCE##",
+              "type": "line",
+              "option": "custom"
+            },
+            "name": "DiskWritesPerSec",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "WriteOperations",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "VaST"
+        },
+        "type": "cgraph",
+        "timescale": "2days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 6,
+        "row": 19,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Top Windows Network Interfaces by Inbound Bandwidth (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "graphInfo": {
+          "virtualDataPoints": [{
+            "rpn": "ReceivedBitsPerSec/1000000",
+            "display": {
+              "color": "Auto",
+              "legend": "",
+              "type": "line",
+              "option": "default"
+            },
+            "name": "Mbps"
+          }],
+          "minValue": 0,
+          "topX": 10,
+          "maxValue": "NaN",
+          "dataPoints": [{
+            "dataPointName": "ReceivedBitsPerSec",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "Interfaces- (WinIf-)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": null,
+              "legend": null,
+              "type": "line",
+              "option": "none"
+            },
+            "name": "ReceivedBitsPerSec",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "Mbps",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "default"
+        },
+        "type": "cgraph",
+        "timescale": "2days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 7,
+        "sizex": 6,
+        "row": 19,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Top Windows Network Interfaces by Outbound Bandwidth (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "graphInfo": {
+          "virtualDataPoints": [{
+            "rpn": "OutboundBitsPerSec/1000000",
+            "display": {
+              "color": "Auto",
+              "legend": "",
+              "type": "line",
+              "option": "default"
+            },
+            "name": "Mbps"
+          }],
+          "minValue": 0,
+          "topX": 10,
+          "maxValue": "NaN",
+          "dataPoints": [{
+            "dataPointName": "OutboundBitsPerSec",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "Interfaces- (WinIf-)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": null,
+              "legend": null,
+              "type": "line",
+              "option": "none"
+            },
+            "name": "OutboundBitsPerSec",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "Mbps",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "VaST"
+        },
+        "type": "cgraph",
+        "timescale": "2days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 3,
+        "row": 3,
+        "sizey": 4
+      },
+      "config": {
+        "displaySettings": {
+          "columns": [
+            {
+              "visible": true,
+              "columnLabel": "\n        Name\n        \n    ",
+              "columnSize": 235,
+              "columnKey": "device-name-1452842526600"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            CPUBusyPercent\n            \n        ",
+              "columnSize": 133,
+              "columnKey": "0"
+            }
+          ],
+          "pageSize": "5"
+        },
+        "columns": [{
+          "rpn": "",
+          "dataPointName": "CPUBusyPercent",
+          "displayType": "percent",
+          "minValue": 0,
+          "unitLabel": "",
+          "maxValue": 100,
+          "colorThresholds": [
+            {
+              "level": 2,
+              "threshold": 85,
+              "relation": ">="
+            },
+            {
+              "level": 3,
+              "threshold": 90,
+              "relation": ">="
+            },
+            {
+              "level": 4,
+              "threshold": 95,
+              "relation": ">="
+            }
+          ],
+          "columnName": "CPU Utilization",
+          "enableForecast": false,
+          "roundingDecimal": 2
+        }],
+        "description": "",
+        "forecast": {
+          "severity": "warn",
+          "confidence": 70,
+          "timeRange": "Last 30 days",
+          "algorithm": "Linear"
+        },
+        "type": "dynamicTable",
+        "rows": [{
+          "instanceName": "*",
+          "label": "##RESOURCENAME##_##INSTANCE##",
+          "deviceDisplayName": "##defaultResourceName##",
+          "groupFullPath": "##defaultResourceGroup##"
+        }],
+        "version": 2,
+        "topX": 25,
+        "dataSourceFullName": "CPU (Microsoft_Windows_CPU)",
+        "sortOrder": "descending",
+        "name": "Top Windows Resources by CPU Utilization (Real-time)",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "timescale": "day"
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 3,
+        "row": 7,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Top Windows Resources by CPU Utilization (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 10,
+          "maxValue": 100,
+          "dataPoints": [{
+            "dataPointName": "CPUBusyPercent",
+            "instanceName": {
+              "isGlob": false,
+              "value": "Microsoft_Windows_CPU"
+            },
+            "dataSourceFullName": "CPU (Microsoft_Windows_CPU)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME##",
+              "type": "line",
+              "option": "custom"
+            },
+            "name": "CPUBusyPercent",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "%",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "VaST"
+        },
+        "type": "cgraph",
+        "timescale": "12hour",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 4,
+        "sizex": 4,
+        "row": 3,
+        "sizey": 4
+      },
+      "config": {
+        "displaySettings": {
+          "columns": [
+            {
+              "visible": true,
+              "columnLabel": "\n        Name\n        \n    ",
+              "columnSize": 281,
+              "columnKey": "device-name-1452842526600"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            Memory Utilization\n            \n        ",
+              "columnSize": 133,
+              "columnKey": "0"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n                    Days Until Alert\n                ",
+              "columnSize": 98,
+              "columnKey": "0-forecast"
+            }
+          ],
+          "pageSize": "5"
+        },
+        "columns": [{
+          "rpn": "",
+          "dataPointName": "MemoryUtilizationPercent",
+          "displayType": "percent",
+          "minValue": 0,
+          "unitLabel": "",
+          "maxValue": 100,
+          "colorThresholds": [
+            {
+              "level": 2,
+              "threshold": 85,
+              "relation": ">="
+            },
+            {
+              "level": 3,
+              "threshold": 90,
+              "relation": ">="
+            },
+            {
+              "level": 4,
+              "threshold": 95,
+              "relation": ">="
+            }
+          ],
+          "columnName": "Memory Utilization",
+          "enableForecast": true,
+          "roundingDecimal": 2
+        }],
+        "description": "",
+        "forecast": {
+          "severity": "warn",
+          "confidence": 70,
+          "timeRange": "Last 30 days",
+          "algorithm": "Linear"
+        },
+        "type": "dynamicTable",
+        "rows": [{
+          "instanceName": "*",
+          "label": "##RESOURCENAME##_##INSTANCE##",
+          "deviceDisplayName": "##defaultResourceName##",
+          "groupFullPath": "##defaultResourceGroup##"
+        }],
+        "version": 2,
+        "topX": 25,
+        "dataSourceFullName": "Memory and Processes (WinOS)",
+        "sortOrder": "descending",
+        "name": "Top Windows Resources by Memory Utilization (Real-time)",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "timescale": "day"
+      }
+    },
+    {
+      "position": {
+        "col": 4,
+        "sizex": 4,
+        "row": 7,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Top Windows Resources by Memory Utilization (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 10,
+          "maxValue": 100,
+          "dataPoints": [{
+            "dataPointName": "MemoryUtilizationPercent",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "Memory and Processes (WinOS)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME##",
+              "type": "area",
+              "option": "custom"
+            },
+            "name": "MemoryUtilizationPercent",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "%",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "default"
+        },
+        "type": "cgraph",
+        "timescale": "2days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 8,
+        "sizex": 5,
+        "row": 3,
+        "sizey": 4
+      },
+      "config": {
+        "displaySettings": {
+          "columns": [
+            {
+              "visible": true,
+              "columnLabel": "\n        Name\n        \n    ",
+              "columnSize": 379,
+              "columnKey": "device-name-1452842526600"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            Volume Utilization\n            \n        ",
+              "columnSize": 134,
+              "columnKey": "0"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n                    Days Until Alert\n                ",
+              "columnSize": 130,
+              "columnKey": "0-forecast"
+            }
+          ],
+          "pageSize": "5"
+        },
+        "columns": [{
+          "rpn": "",
+          "dataPointName": "PercentUsed",
+          "displayType": "percent",
+          "minValue": 0,
+          "unitLabel": "",
+          "maxValue": 100,
+          "colorThresholds": [
+            {
+              "level": 2,
+              "threshold": 91,
+              "relation": ">="
+            },
+            {
+              "level": 3,
+              "threshold": 95,
+              "relation": ">="
+            },
+            {
+              "level": 4,
+              "threshold": 98,
+              "relation": ">="
+            }
+          ],
+          "columnName": "Volume Utilization",
+          "enableForecast": true,
+          "roundingDecimal": 2
+        }],
+        "description": "",
+        "forecast": {
+          "severity": "warn",
+          "confidence": 70,
+          "timeRange": "Last 30 days",
+          "algorithm": "Linear"
+        },
+        "type": "dynamicTable",
+        "rows": [{
+          "instanceName": "*",
+          "label": "##RESOURCENAME## - ##INSTANCE##",
+          "deviceDisplayName": "##defaultResourceName##",
+          "groupFullPath": "##defaultResourceGroup##"
+        }],
+        "version": 2,
+        "topX": 25,
+        "dataSourceFullName": "Volume Capacity (WinVolumeUsage-)",
+        "sortOrder": "descending",
+        "name": "Top Windows Resources by Volume Utilization (Real-time)",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "timescale": "day"
+      }
+    },
+    {
+      "position": {
+        "col": 8,
+        "sizex": 5,
+        "row": 7,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Top Windows Resources by Volume Utilization (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 10,
+          "maxValue": 100,
+          "dataPoints": [{
+            "dataPointName": "PercentUsed",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "Volume Capacity (WinVolumeUsage-)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME## - ##INSTANCE##",
+              "type": "area",
+              "option": "custom"
+            },
+            "name": "PercentUsed",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "%",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "default"
+        },
+        "type": "cgraph",
+        "timescale": "7days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 4,
+        "row": 10,
+        "sizey": 3
+      },
+      "config": {
+        "bigNumberInfo": {
+          "virtualDataPoints": [
+            {
+              "rpn": "Capacity/1024/1024/1024",
+              "name": "CapacityGB"
+            },
+            {
+              "rpn": "FreeSpace /1024/1024/1024",
+              "name": "FreeSpaceGB"
+            }
+          ],
+          "counters": [],
+          "dataPoints": [
+            {
+              "dataPointName": "Capacity",
+              "instanceName": "*",
+              "dataSourceFullName": "Volume Capacity (WinVolumeUsage-)",
+              "name": "Capacity",
+              "aggregateFunction": "SUM",
+              "deviceGroupFullPath": "##defaultResourceGroup##",
+              "deviceDisplayName": "##defaultResourceName##"
+            },
+            {
+              "dataPointName": "FreeSpace",
+              "instanceName": "*",
+              "dataSourceFullName": "Volume Capacity (WinVolumeUsage-)",
+              "name": "FreeSpace",
+              "aggregateFunction": "SUM",
+              "deviceGroupFullPath": "##defaultResourceGroup##",
+              "deviceDisplayName": "##defaultResourceName##"
+            }
+          ],
+          "bigNumberItems": [
+            {
+              "dataPointName": "FreeSpaceGB",
+              "useCommaSeparators": false,
+              "bottomLabel": "",
+              "rounding": 0,
+              "position": 1,
+              "rightLabel": "Available (GB)",
+              "colorThresholds": null
+            },
+            {
+              "dataPointName": "CapacityGB",
+              "useCommaSeparators": false,
+              "bottomLabel": "",
+              "rounding": 0,
+              "position": 2,
+              "rightLabel": "Capacity (GB)",
+              "colorThresholds": null
+            }
+          ]
+        },
+        "displaySettings": {},
+        "name": "Total Disk Space across all Windows Resources",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "type": "bigNumber",
+        "timescale": "day",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 5,
+        "sizex": 8,
+        "row": 1,
+        "sizey": 2
+      },
+      "config": {
+        "ackChecked": true,
+        "displaySettings": {
+          "showTypeIcon": true,
+          "displayAs": "table"
+        },
+        "displayWarnAlert": true,
+        "description": "",
+        "type": "noc",
+        "version": 2,
+        "displayErrorAlert": true,
+        "displayColumn": 3,
+        "name": "Windows Alert Status",
+        "displayCriticalAlert": true,
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "sortBy": "alertSeverity",
+        "timescale": "day",
+        "sdtChecked": true,
+        "items": [{
+          "dataPointName": "*",
+          "instanceName": "*",
+          "name": "##RESOURCENAME##",
+          "dataSourceDisplayName": "*",
+          "groupBy": "device",
+          "type": "device",
+          "deviceGroupFullPath": "##defaultResourceGroup##",
+          "deviceDisplayName": "##defaultResourceName##"
+        }]
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 12,
+        "row": 22,
+        "sizey": 5
+      },
+      "config": {
+        "displaySettings": {
+          "isShowAll": false,
+          "showFilter": false,
+          "columns": [
+            {
+              "visible": false,
+              "columnLabel": "Severity",
+              "columnKey": "alert-severity"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Began",
+              "columnSize": 178,
+              "columnKey": "alert-began"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Resource/Website",
+              "columnSize": 176,
+              "columnKey": "alert-device"
+            },
+            {
+              "visible": true,
+              "columnLabel": "LogicModule",
+              "columnSize": 205,
+              "columnKey": "alert-datasource"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Instance",
+              "columnSize": 393,
+              "columnKey": "alert-datasource-instance"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Datapoint",
+              "columnSize": 213,
+              "columnKey": "alert-datapoint"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Value",
+              "columnSize": 317,
+              "columnKey": "alert-value"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Group",
+              "columnKey": "alert-group"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Notes",
+              "columnSize": 49,
+              "columnKey": "alert-notes"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Acknowledged By",
+              "columnSize": 120,
+              "columnKey": "alert-acked-by"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Acknowledged On",
+              "columnKey": "alert-acked-on"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Cleared On",
+              "columnKey": "alert-cleared-on"
+            },
+            {
+              "visible": false,
+              "columnLabel": "In SDT",
+              "columnKey": "alert-in-sdt"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Alert Rule",
+              "columnKey": "alert-rule-name"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Escalation Chain",
+              "columnKey": "alert-escalation-chain"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Instance Description",
+              "columnKey": "alert-datasource-instance-description"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Full Path",
+              "columnKey": "alert-full-path"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Routing State",
+              "columnKey": "alert-routing-state"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Dependency Role",
+              "columnKey": "alert-dependency-role"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Static Threshold",
+              "columnSize": 103,
+              "columnKey": "alert-static-threshold"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Dynamic Threshold",
+              "columnSize": 119,
+              "columnKey": "alert-dynamic-threshold"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Dependent Alerts",
+              "columnKey": "alert-dependent-alerts"
+            }
+          ],
+          "playSound": {
+            "criticalAlertAudioFileName": "",
+            "errorAlertAudioFileName": "",
+            "warningAlertAudioFileName": "",
+            "shouldPlay": false
+          },
+          "fontsize": "normal-font",
+          "sort": "-startEpoch"
+        },
+        "name": "Windows Alerts",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "filters": {
+          "severity": "",
+          "sdted": "all",
+          "chain": "",
+          "instance": "",
+          "dataPoint": "",
+          "rule": "",
+          "acked": "all",
+          "dependencyRoutingState": "",
+          "dependencyRole": "",
+          "host": "%23%23defaultResourceName%23%23",
+          "keyword": "",
+          "dataSource": "",
+          "cleared": "no",
+          "group": "%23%23defaultResourceGroup%23%23*"
+        },
+        "type": "alert",
+        "timescale": "day",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 5,
+        "sizex": 4,
+        "row": 15,
+        "sizey": 4
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Windows Operating Systems",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "type": "pieChart",
+        "timescale": "day",
+        "pieChartInfo": {
+          "maxSlicesCanBeShown": 25,
+          "virtualDataPoints": [],
+          "showLabelsAndLinesOnPC": true,
+          "counters": [
+            {
+              "name": "windows2003",
+              "appliesTo": "isWindows() && system.sysinfo =~ \"2003\""
+            },
+            {
+              "name": "windows2008",
+              "appliesTo": "isWindows() && system.sysinfo =~ \"2008\""
+            },
+            {
+              "name": "windows2012",
+              "appliesTo": "isWindows() && system.sysinfo =~ \"2012\""
+            },
+            {
+              "name": "windows2016",
+              "appliesTo": "isWindows() && system.sysinfo =~ \"2016\""
+            },
+            {
+              "name": "windows2019",
+              "appliesTo": "isWindows() && system.sysinfo =~ \"2019\""
+            },
+            {
+              "name": "windows10",
+              "appliesTo": "isWindows() && system.sysinfo =~ \"Windows 10\""
+            },
+            {
+              "name": "windows7",
+              "appliesTo": "isWindows() && system.sysinfo =~ \"Windows 7\""
+            }
+          ],
+          "dataPoints": [],
+          "hideZeroPercentSlices": true,
+          "groupRemainingAsOthers": false,
+          "pieChartItems": [
+            {
+              "dataPointName": "windows2019",
+              "color": "Auto",
+              "legend": "Windows Server 2019"
+            },
+            {
+              "dataPointName": "windows2003",
+              "color": "Auto",
+              "legend": "Windows Server 2003"
+            },
+            {
+              "dataPointName": "windows2008",
+              "color": "Auto",
+              "legend": "Windows Server 2008"
+            },
+            {
+              "dataPointName": "windows2012",
+              "color": "Auto",
+              "legend": "Windows Server 2012"
+            },
+            {
+              "dataPointName": "windows2016",
+              "color": "Auto",
+              "legend": "Windows Server 2016"
+            },
+            {
+              "dataPointName": "windows10",
+              "color": "Auto",
+              "legend": "Windows 10"
+            },
+            {
+              "dataPointName": "windows7",
+              "color": "Auto",
+              "legend": "Windows 7"
+            }
+          ],
+          "title": "Windows Operating Systems"
+        },
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 9,
+        "sizex": 4,
+        "row": 15,
+        "sizey": 4
+      },
+      "config": {
+        "bigNumberInfo": {
+          "virtualDataPoints": [],
+          "counters": [
+            {
+              "name": "Devices",
+              "appliesTo": "isWindows()"
+            },
+            {
+              "name": "Servers",
+              "appliesTo": "isWindows() && system.sysinfo =~ \"Server\""
+            },
+            {
+              "name": "Desktops",
+              "appliesTo": "isWindows() && system.sysinfo !~ \"Server\""
+            }
+          ],
+          "dataPoints": [],
+          "bigNumberItems": [
+            {
+              "dataPointName": "Devices",
+              "useCommaSeparators": false,
+              "bottomLabel": "",
+              "rounding": 0,
+              "position": 1,
+              "rightLabel": "Windows Devices",
+              "colorThresholds": null
+            },
+            {
+              "dataPointName": "Servers",
+              "useCommaSeparators": false,
+              "bottomLabel": "",
+              "rounding": 0,
+              "position": 2,
+              "rightLabel": "Windows Servers",
+              "colorThresholds": null
+            },
+            {
+              "dataPointName": "Desktops",
+              "useCommaSeparators": false,
+              "bottomLabel": "",
+              "rounding": 0,
+              "position": 3,
+              "rightLabel": "Windows Desktops",
+              "colorThresholds": null
+            }
+          ]
+        },
+        "displaySettings": {},
+        "name": "Windows Resources Breakdown",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "type": "bigNumber",
+        "timescale": "day",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 4,
+        "row": 1,
+        "sizey": 2
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Resource Selector",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 15,
+        "type": "text",
+        "timescale": "day",
+        "version": 2,
+        "content": "<link href=\"https://static-prod.logicmonitor.com/sbui133-1/commons/stylesheets2/startup.css?v=220429\" rel=\"stylesheet\" />\n<style type=\"text/css\">.selectorHeader {padding: 5px 0 15px; border-bottom: 1px solid silver; font-weight: bold;}\n\t#pickerControls {margin-top: 10px;}\n\t#pickerControls p {margin: 5px 3px;}\n\t#pickerControls td {padding: 5px 3px;}\n\t#pickerControls input {display: initial; width: auto; padding-top: 0; margin-right: 5px;}\n\t.pickerHelp {margin-top: 15px; font-style: italic; color: gray; font-size: small;}\n\n    #pickerControls label {color: white;}\n\t#resourceNameTitle {color: aquamarine; font-size: 28px; padding: 0 0 10px 0;}\n<\/style>\n<div id=\"pickerControls\">\n<div id=\"resourceNameTitle\">##defaultResourceName##<\/div>\n<label for=\"defaultResourceName\">Resource:<\/label> <input id=\"defaultResourceName\" maxlength=\"30\" onkeyup=\"checkInput();\" placeholder=\"(resource name)\" required=\"true\" size=\"20\" type=\"text\" value=\"##defaultResourceName##\" /><button class=\"lm-button small blue animate\" id=\"updateResourceGoButton\" onclick=\"validateForm();\">Go<\/button><\/div>\n\n<div class=\"pickerHelp\">Enter a resource name/pattern. You may use an asterisk as a wildcard (example: &quot;win*&quot;).<\/div>\n<script>\n\t// (OPTIONAL) You can set values for the ID and key needed for the LogicMonitor REST API calls inside the quotes of the two lines below. This allows the API keys to not be as visibly exposed. If either value (ID or key) is set as a dashboard token then it will override the value set here.\n\tvar apiID = \"\";\n\tvar apiKey = \"\";\n\n\tconst groupPrefix = \"\";\n\t// ---\n\n\t// Capture information from specific dashboard tokens we'll be using...\n\n\t// Capture our API credentials from token...\n\tvar apiIDToken = \"##apiID##\";\n\tvar apiKeyToken = \"##apiKey##\";\n\t// If the token values weren't set then use the values hard-coded above in this script...\n\tif (apiIDToken != \"\\#\\#apiID\\#\\#\") {\n\t\tapiID = apiIDToken;\n\t}\n\tif (apiKeyToken != \"\\#\\#apiKey\\#\\#\") {\n\t\tapiKey = apiKeyToken;\n\t}\n\n\t// (Part of this customization) Label we'll show instead of \"*\" if all resources are being shown...\n\tvar allDevicesLabel = \"All devices\"\n\n\t// The names of the tokens we'll be updating...\n\tconst defaultResourceGroupTokenName = \"defaultResourceGroup\";\n\tconst defaultResourceNameTokenName = \"defaultResourceName\";\n\t// const defaultInstanceTokenName = \"defaultInstance\"\n\t// Capture the current values of the tokens...\n\t// (Like any token inserted into the Text widget, LogicMonitor automatically inserts these token values as the page is being rendered so Javascript is able to pick them as if the values were there originally. If a token isn't set then the variable's value will be literally what's shown below, including the double-hashtags.)\n\tvar defaultResourceGroupInitialValue = \"##defaultResourceGroup##\";\n\tvar defaultResourceNameInitialValue = \"##defaultResourceName##\"\n\t// var defaultInstanceInitialValue = \"##defaultInstance##\"\n\t// var defaultDatasourceInitialValue = \"##defaultDatasource##\"\n\t// var dynamicGroupParentID = \"##dynamicGroupParentID##\";\n\t// var hideDynamicGroupDropdown = \"##hideDynamicGroupDropdown##\"\n\t// var hideDynamicResourceDropdown = \"##hideDynamicResourceDropdown##\"\n\t// var hideDynamicInstanceDropdown = \"##hideDynamicInstanceDropdown##\"\n\tvar defaultResourceNameToken = \"##defaultResourceName##\";\n\t// The 'dynamicGroupParentID' is an optional token the user can set to limit the group list to a specific parent. Use the root group (ID 1) if the token wasn't set...\n\t// if (isNaN(dynamicGroupParentID)) {\n\t// \tdynamicGroupParentID = 1;\n\t// }\n\n\t// Prep variables to capture/set 'defaultResourceGroup' tokens...\n\tvar processGroupToken = false;\n\t// Prep variables to capture/set 'defaultResourceName' tokens...\n\tvar processResourceToken = true;\n\t// Prep variables to capture/set 'defaultInstance' tokens...\n\tvar processInstanceToken = false;\n\n\tvar defaultResourceName = \"\";\n\tif (defaultResourceNameToken != \"\\#\\#defaultResourceName\\#\\#\") {\n\t\tdefaultResourceName = defaultResourceNameToken;\n\t\t// document.getElementById(\"defaultResourceName\").value = defaultResourceName;\n\t}\n\n\t// Regular expression used for testing if we were given a valid resource name...\n\tconst resourcePattern = /.+/;\n\n\n\t// ---\n\n\t// Capture information about the current dashboard for use in subsequent REST calls...\n\tvar hostName = parent.window.location.host;\n\tvar locationHash = parent.window.location.hash; // example result: \"#dashboard=21\"\n\tvar dashboardID = locationHash.replace(\"#dashboard=\", \"\");\n\n\t// Encoder to convert strings to Uint8Array for API signatures...\n\tvar enc = new TextEncoder(\"utf-8\");\n\n\t// If showing all resources, change our resource title to something more friendly than \"*\"...\n\tif (defaultResourceNameInitialValue == \"*\") {\n\t\tdocument.querySelector(\"#resourceNameTitle\").innerText = allDevicesLabel\n\t}\n\n\tcheckInput();\n\n\t// ----- FUNCTIONS\n\n\t// Enable/disable the \"Go\" button if our resource name isn't valid...\n\tfunction checkInput() {\n\t\tvar goButton = document.getElementById(\"updateResourceGoButton\");\n\t\tvar resourceFieldVal = document.getElementById(\"defaultResourceName\").value.trim();\n\n\t\t// if (resourceFieldVal.length > 0 && Number.isInteger(Number(resourceFieldVal))) {\n\t\tif (resourceFieldVal.length > 0 && resourceFieldVal.match(resourcePattern)) {\n\t\t\tgoButton.disabled = false;\n\t\t} else {\n\t\t\tgoButton.disabled = true;\n\t\t}\n\t}\n\n\t// Validate that we have a value...\n\tfunction validateForm() {\n\t\tvar resourceFieldVal = document.getElementById(\"defaultResourceName\").value;\n\n\t\t// if (resourceFieldVal.length > 0 && Number.isInteger(Number(resourceFieldVal))) {\n\t\tif (resourceFieldVal.length > 0 && resourceFieldVal.match(resourcePattern)) {\n\t\t\t// A value was entered, so let's update the dashboard...\n\t\t\tdefaultResourceName = resourceFieldVal;\n\t\t\tconsole.log(\"Validated... updating....\")\n\t\t\tupdateDashboard();\n\t\t}\n\t}\n\n\t// Function processing status of Fetch calls...\n\tfunction status(response) {\n\t  if (response.status >= 200 && response.status < 300) {\n\t    return Promise.resolve(response);\n\t  } else {\n\t    return Promise.reject(new Error(response.statusText));\n\t  }\n\t}\n\n\n\t// Pre-processor for JSON responses from Fetch calls...\n\tfunction json(response) {\n\t  return response.json();\n\t}\n\n\n\tfunction updateDashboard() {\n\t\t// Construct our new 'defaultResourceGroup' value...\n\t\tvar newResourceGroup = groupPrefix + defaultResourceName;\n\n\t\t// Request Details...\n\t\tvar httpVerb = \"GET\";\n\t\tvar epoch = (new Date).getTime();\n\t\tvar resourcePath = \"/dashboard/dashboards/\" + dashboardID;\n\t\tvar queryParams = \"\";\n\n\t\t// Construct signature...\n\t\tvar requestVars = httpVerb + epoch + resourcePath;\n\n\t\t// Prep our URL & query for the REST call...\n\t\tvar apiURL = \"https://\" + hostName + \"/santaba/rest\" + resourcePath + queryParams;\n\n\t\t// Create our API signature...\n\t\twindow.crypto.subtle.importKey(\n\t\t    \"raw\", // raw format of the key - should be Uint8Array\n\t\t    enc.encode(apiKey),\n\t\t    { // algorithm details\n\t\t        name: \"HMAC\",\n\t\t        hash: {name: \"SHA-256\"}\n\t\t    },\n\t\t    false, // export = false\n\t\t    [\"sign\", \"verify\"] // what this key can do\n\t\t).then( key => {\n\t\t    window.crypto.subtle.sign(\n\t\t        \"HMAC\",\n\t\t        key,\n\t\t        enc.encode(requestVars)\n\t\t    ).then(signature => {\n\t\t        var b = new Uint8Array(signature);\n\t\t        var hmacX = Array.prototype.map.call(b, x => ('00'+x.toString(16)).slice(-2)).join(\"\");\n\t\t        var signature = btoa(hmacX);\n\n\t\t        // Construct auth header...\n\t\t        var auth = \"LMv1 \" + apiID + \":\" + signature + \":\" + epoch;\n\n\t\t        // We now have what's needed for LMv1 API Token authentication. Let's make our API call...\n\n\t\t\t\t// Call the API to get the current dashboard definition...\n\t\t\t\tfetch(apiURL, {\n\t\t\t\t\tmethod: httpVerb,\n\t\t\t\t\theaders: {\n\t\t\t\t\t\t'Content-Type': 'application/json;charset=utf-8',\n\t\t\t\t\t\t'Authorization': auth\n\t\t\t\t\t},\n\t\t\t\t})\n\t\t\t\t.then(status)\n\t\t\t\t.then(json)\n\t\t\t\t.then(function(data) {\n\t\t\t\t\tconsole.log('Get Dashboard request succeeded with JSON response', data)\n\n\t\t\t\t\t// Loop through the dashboard's tokens looking for the one(s) we want to change...\n\t\t\t\t\tdata.data.widgetTokens.forEach(thisToken => {\n\t\t\t\t\t\t// Resource group...\n\t\t\t\t\t\tif (processGroupToken && thisToken.name == defaultResourceGroupTokenName) {\n\t\t\t\t\t\t\tthisToken.value = newResourceGroup;\n\t\t\t\t\t\t}\n\t\t\t\t\t\t// Resource name...\n\t\t\t\t\t\tif (thisToken.name == defaultResourceNameTokenName) {\n\t\t\t\t\t\t\tthisToken.value = defaultResourceName;\n\t\t\t\t\t\t}\n\t\t\t\t\t})\n\n\t\t\t        // Build the JSON body we'll be posting to update the dashboard data...\n\t\t\t        var dashData = data.data;\n\t\t\t\t\tconsole.log(\"dashData = \" + dashData)\n\t\t\t        postBody = JSON.stringify({\"groupId\":dashData.groupId, \"widgetsConfig\":dashData.widgetsConfig, \"name\":dashData.name, \"description\":dashData.description, \"sharable\":dashData.sharable, \"owner\":dashData.owner, \"groupName\":dashData.groupName, \"useDynamicWidget\":dashData.useDynamicWidget, \"widgetTokens\":dashData.widgetTokens});\n\n\t\t\t\t\t// Prep details for the call to update the dashboard...\n\t\t\t\t\thttpVerb = \"PUT\";\n\t\t\t\t\tvar epoch = (new Date).getTime();\n\t\t\t\t\tvar resourcePath = \"/dashboard/dashboards/\" + dashboardID;\n\t\t\t\t\tvar queryParams = \"\";\n\n\t\t\t\t\t// Construct signature... \n\t\t\t\t\tvar requestVars = httpVerb + epoch + postBody + resourcePath;\n\n\t\t\t\t\t// Prep our URL & query for the REST call...\n\t\t\t\t\tvar apiURL = \"https://\" + hostName + \"/santaba/rest\" + resourcePath + queryParams;\n\n\t\t\t\t\t// Create our API signature...\n\t\t\t\t\twindow.crypto.subtle.importKey(\n\t\t\t\t\t    \"raw\", // raw format of the key - should be Uint8Array\n\t\t\t\t\t    enc.encode(apiKey),\n\t\t\t\t\t    { // algorithm details\n\t\t\t\t\t        name: \"HMAC\",\n\t\t\t\t\t        hash: {name: \"SHA-256\"}\n\t\t\t\t\t    },\n\t\t\t\t\t    false, // export = false\n\t\t\t\t\t    [\"sign\", \"verify\"] // what this key can do\n\t\t\t\t\t).then( key => {\n\t\t\t\t\t    window.crypto.subtle.sign(\n\t\t\t\t\t        \"HMAC\",\n\t\t\t\t\t        key,\n\t\t\t\t\t        enc.encode(requestVars)\n\t\t\t\t\t    ).then(signature => {\n\t\t\t\t\t        var b = new Uint8Array(signature);\n\t\t\t\t\t        var hmacX = Array.prototype.map.call(b, x => ('00'+x.toString(16)).slice(-2)).join(\"\");\n\t\t\t\t\t        var signature = btoa(hmacX);\n\n\t\t\t\t\t        // Construct auth header...\n\t\t\t\t\t        var auth = \"LMv1 \" + apiID + \":\" + signature + \":\" + epoch;\n\n\t\t\t\t\t        // We now have what's needed for LMv1 API Token authentication. Let's make our API call...\n\n\t\t\t\t\t\t\t// Update the dashboard definition via API...\n\t\t\t\t\t\t\tfetch(apiURL, {\n\t\t\t\t\t\t\t\tmethod: httpVerb,\n\t\t\t\t\t\t\t\theaders: {\n\t\t\t\t\t\t\t\t\t'Content-Type': 'application/json; charset=UTF-8',\n\t\t\t\t\t\t\t\t\t'Authorization': auth\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\tbody: postBody\n\t\t\t\t\t\t\t})\n\t\t\t\t\t\t\t.then(json)\n\t\t\t\t\t\t\t.then(function(data) {\n\t\t\t\t\t\t\t\tconsole.log('Update Dashboard request succeeded with JSON response', data)\n\n\t\t\t\t\t\t\t\t// Reload the page to reflect the new token values...\n\t\t\t\t\t\t\t\tparent.location.reload();\n\t\t\t\t\t\t\t})\n\t\t\t\t\t\t\t.catch(function(error) {\n\t\t\t\t\t\t\t\tconsole.log('Request failed', error);\n\t\t\t\t\t\t\t})\n\t\t\t\t\t    })\n\t\t\t\t\t})\n\t\t\t\t})\n\t\t    })\n\t\t})\n\t}\n<\/script>"
+      }
+    }
+  ],
+  "version": 2
+}

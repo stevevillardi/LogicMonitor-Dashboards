@@ -1,0 +1,1576 @@
+{
+  "santabaRelease": 167,
+  "widgetTokens": [
+    {
+      "name": "apiID",
+      "value": "changeme"
+    },
+    {
+      "name": "apiKey",
+      "value": "changeme"
+    },
+    {
+      "name": "defaultInstanceName",
+      "value": "*"
+    },
+    {
+      "name": "defaultResourceGroup",
+      "value": "Devices by Type/Linux Servers"
+    },
+    {
+      "name": "defaultResourceName",
+      "value": "*"
+    },
+    {
+      "name": "dynamicGroupParentID",
+      "value": "1"
+    },
+    {
+      "name": "hideDynamicGroupDropdown",
+      "value": "true"
+    }
+  ],
+  "name": "Dynamic Server-at-a-Glance: Linux(SSH)",
+  "description": "",
+  "overwriteGroupFields": false,
+  "widgetsConfigVersion": 2,
+  "type": "dashboard",
+  "widgets": [
+    {
+      "position": {
+        "col": 5,
+        "sizex": 2,
+        "row": 1,
+        "sizey": 2
+      },
+      "config": {
+        "ackChecked": true,
+        "displaySettings": {
+          "showTypeIcon": true,
+          "displayAs": "table"
+        },
+        "displayWarnAlert": true,
+        "description": "",
+        "type": "noc",
+        "version": 2,
+        "displayErrorAlert": true,
+        "displayColumn": 3,
+        "name": "Alert Status",
+        "displayCriticalAlert": true,
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "sortBy": "alertSeverity",
+        "timescale": "day",
+        "sdtChecked": true,
+        "items": [{
+          "dataPointName": "*",
+          "instanceName": "*",
+          "name": "##RESOURCENAME##",
+          "dataSourceDisplayName": "*",
+          "groupBy": "device",
+          "type": "device",
+          "deviceGroupFullPath": "##defaultResourceGroup##",
+          "deviceDisplayName": "##defaultResourceName##"
+        }]
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 12,
+        "row": 25,
+        "sizey": 4
+      },
+      "config": {
+        "displaySettings": {
+          "isShowAll": false,
+          "showFilter": false,
+          "columns": [
+            {
+              "visible": false,
+              "columnLabel": "Severity",
+              "columnKey": "alert-severity"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Began",
+              "columnKey": "alert-began"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Resource/Website",
+              "columnKey": "alert-device"
+            },
+            {
+              "visible": true,
+              "columnLabel": "LogicModule",
+              "columnKey": "alert-datasource"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Instance",
+              "columnKey": "alert-datasource-instance"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Datapoint",
+              "columnKey": "alert-datapoint"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Value",
+              "columnKey": "alert-value"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Group",
+              "columnKey": "alert-group"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Notes",
+              "columnKey": "alert-notes"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Acknowledged By",
+              "columnKey": "alert-acked-by"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Acknowledged On",
+              "columnKey": "alert-acked-on"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Cleared On",
+              "columnKey": "alert-cleared-on"
+            },
+            {
+              "visible": false,
+              "columnLabel": "In SDT",
+              "columnKey": "alert-in-sdt"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Alert Rule",
+              "columnKey": "alert-rule-name"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Escalation Chain",
+              "columnKey": "alert-escalation-chain"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Instance Description",
+              "columnKey": "alert-datasource-instance-description"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Full Path",
+              "columnKey": "alert-full-path"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Routing State",
+              "columnKey": "alert-routing-state"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Dependency Role",
+              "columnKey": "alert-dependency-role"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Static Threshold",
+              "columnKey": "alert-static-threshold"
+            },
+            {
+              "visible": true,
+              "columnLabel": "Dynamic Threshold",
+              "columnKey": "alert-dynamic-threshold"
+            },
+            {
+              "visible": false,
+              "columnLabel": "Dependent Alerts",
+              "columnKey": "alert-dependent-alerts"
+            }
+          ],
+          "playSound": {
+            "criticalAlertAudioFileName": "",
+            "errorAlertAudioFileName": "",
+            "warningAlertAudioFileName": "",
+            "shouldPlay": false
+          },
+          "fontsize": "normal-font",
+          "sort": "-startEpoch"
+        },
+        "name": "Alerts",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "filters": {
+          "severity": "",
+          "sdted": "all",
+          "chain": "",
+          "instance": "",
+          "dataPoint": "",
+          "rule": "",
+          "acked": "all",
+          "dependencyRoutingState": "",
+          "dependencyRole": "",
+          "host": "%23%23defaultResourceName%23%23",
+          "keyword": "",
+          "dataSource": "",
+          "cleared": "no",
+          "group": "%23%23defaultResourceGroup%23%23*"
+        },
+        "type": "alert",
+        "timescale": "day",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 3,
+        "row": 3,
+        "sizey": 4
+      },
+      "config": {
+        "displaySettings": {},
+        "legend": "%",
+        "maxValue": 100,
+        "dataPoint": {
+          "rpn": "",
+          "dataPointName": "CPUBusyPercent",
+          "instanceName": "*",
+          "dataSourceFullName": "CPU / Memory (Linux_SSH_CPUMemory)",
+          "dataSeries": "average",
+          "aggregateFunction": "AVERAGE",
+          "deviceGroupFullPath": "##defaultResourceGroup##",
+          "deviceDisplayName": "##defaultResourceName##"
+        },
+        "description": "",
+        "displayUnit": "",
+        "type": "gauge",
+        "version": 2,
+        "minValue": 0,
+        "displayType": 0,
+        "peakTimeRange": "1hour",
+        "showPeak": true,
+        "name": "CPU Utilization",
+        "theme": "newBorderDarkBlue",
+        "interval": 1,
+        "timescale": "day",
+        "colorThresholds": null
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 3,
+        "row": 7,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "CPU Utilization (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 1,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 10,
+          "maxValue": 100,
+          "dataPoints": [{
+            "dataPointName": "CPUBusyPercent",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "CPU / Memory (Linux_SSH_CPUMemory)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME##",
+              "type": "area",
+              "option": "custom"
+            },
+            "name": "CPUBusyPercent",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "%",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "VaST"
+        },
+        "type": "cgraph",
+        "timescale": "2days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 6,
+        "row": 13,
+        "sizey": 2
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Disks by Read Operations (Trend)",
+        "description": "",
+        "theme": "newBorderDarkBlue",
+        "interval": 1,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 25,
+          "maxValue": "NaN",
+          "dataPoints": [{
+            "dataPointName": "reads",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "Block Device Performance (Linux_SSH_BlockDevicePerformance)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME## ##INSTANCE##",
+              "type": "line",
+              "option": "custom"
+            },
+            "name": "ReadOperations",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "ReadOperations",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "default"
+        },
+        "type": "cgraph",
+        "timescale": "7days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 7,
+        "sizex": 6,
+        "row": 13,
+        "sizey": 2
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Disks by Write Operations (Trend)",
+        "description": "",
+        "theme": "newBorderDarkBlue",
+        "interval": 1,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 10,
+          "maxValue": "NaN",
+          "dataPoints": [{
+            "dataPointName": "writes",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "Block Device Performance (Linux_SSH_BlockDevicePerformance)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME##_##INSTANCE##",
+              "type": "line",
+              "option": "custom"
+            },
+            "name": "WriteOperations",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "WriteOperations",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "default"
+        },
+        "type": "cgraph",
+        "timescale": "7days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 7,
+        "sizex": 6,
+        "row": 7,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Filesystem Utilization (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 1,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 25,
+          "maxValue": 100,
+          "dataPoints": [{
+            "dataPointName": "PercentUsed",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "Filesystems (Linux_SSH_Filesystems)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME## ##INSTANCE##",
+              "type": "area",
+              "option": "custom"
+            },
+            "name": "PercentUsed",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "percent used",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "default"
+        },
+        "type": "cgraph",
+        "timescale": "7days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 7,
+        "sizex": 6,
+        "row": 3,
+        "sizey": 4
+      },
+      "config": {
+        "displaySettings": {
+          "columns": [
+            {
+              "visible": true,
+              "columnLabel": "\n        Name\n        \n    ",
+              "columnSize": 315,
+              "columnKey": "device-name-1452842526600"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            Storage Utilization\n            \n        ",
+              "columnSize": 181,
+              "columnKey": "0"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n                    Days Until Alert\n                ",
+              "columnSize": 123,
+              "columnKey": "0-forecast"
+            }
+          ],
+          "pageSize": "5"
+        },
+        "columns": [
+          {
+            "rpn": "",
+            "dataPointName": "PercentUsed",
+            "displayType": "percent",
+            "minValue": 0,
+            "unitLabel": "",
+            "maxValue": 100,
+            "colorThresholds": [
+              {
+                "level": 2,
+                "threshold": 85,
+                "relation": ">="
+              },
+              {
+                "level": 3,
+                "threshold": 95,
+                "relation": ">="
+              }
+            ],
+            "columnName": "Storage Utilization",
+            "enableForecast": true,
+            "roundingDecimal": 2
+          },
+          {
+            "rpn": "Capacity/1000/1000/1000",
+            "dataPointName": "TotalBytes",
+            "displayType": "raw",
+            "minValue": 0,
+            "unitLabel": "GB",
+            "maxValue": 100,
+            "colorThresholds": [],
+            "columnName": "Capacity",
+            "enableForecast": false,
+            "roundingDecimal": 2
+          },
+          {
+            "rpn": "FreeSpace/1000/1000/1000",
+            "dataPointName": "available",
+            "displayType": "raw",
+            "minValue": 0,
+            "unitLabel": "GB",
+            "maxValue": 100,
+            "colorThresholds": [],
+            "columnName": "FreeSpace",
+            "enableForecast": false,
+            "roundingDecimal": 2
+          }
+        ],
+        "description": "",
+        "forecast": {
+          "severity": "warn",
+          "confidence": 70,
+          "timeRange": "Last 30 days",
+          "algorithm": "Linear"
+        },
+        "type": "dynamicTable",
+        "rows": [{
+          "instanceName": "*",
+          "label": "##RESOURCENAME## - ##INSTANCE##",
+          "deviceDisplayName": "##defaultResourceName##",
+          "groupFullPath": "##defaultResourceGroup##"
+        }],
+        "version": 2,
+        "topX": 10,
+        "dataSourceFullName": "Filesystems (Linux_SSH_Filesystems)",
+        "sortOrder": "descending",
+        "name": "Filesystems by Storage Utilization (Real-time)",
+        "theme": "newSolidDarkBlue",
+        "interval": 1,
+        "timescale": "day"
+      }
+    },
+    {
+      "position": {
+        "col": 7,
+        "sizex": 6,
+        "row": 15,
+        "sizey": 4
+      },
+      "config": {
+        "displaySettings": {
+          "columns": [
+            {
+              "visible": true,
+              "columnLabel": "\n        Name\n        \n    ",
+              "columnSize": 449,
+              "columnKey": "device-name-1452842526600"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            Discards (In)\n            \n        ",
+              "columnSize": 91,
+              "columnKey": "0"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            Errors (In)\n            \n        ",
+              "columnSize": 122,
+              "columnKey": "1"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            Discards (Out)\n            \n        ",
+              "columnSize": 105,
+              "columnKey": "2"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            Errors (Out)\n            \n        ",
+              "columnSize": 127,
+              "columnKey": "3"
+            }
+          ],
+          "pageSize": "5"
+        },
+        "columns": [
+          {
+            "rpn": "",
+            "dataPointName": "rx_drops",
+            "displayType": "raw",
+            "minValue": 0,
+            "unitLabel": " pkts/sec.",
+            "maxValue": 100,
+            "colorThresholds": [],
+            "columnName": "Discards (In)",
+            "enableForecast": false,
+            "roundingDecimal": 2
+          },
+          {
+            "rpn": "",
+            "dataPointName": "rx_errors",
+            "displayType": "raw",
+            "minValue": 0,
+            "unitLabel": " pkts/sec.",
+            "maxValue": 100,
+            "colorThresholds": [],
+            "columnName": "Errors (In)",
+            "enableForecast": false,
+            "roundingDecimal": 2
+          },
+          {
+            "rpn": "",
+            "dataPointName": "tx_drops",
+            "displayType": "raw",
+            "minValue": 0,
+            "unitLabel": " pkts/sec.",
+            "maxValue": 100,
+            "colorThresholds": [],
+            "columnName": "Discards (Out)",
+            "enableForecast": false,
+            "roundingDecimal": 2
+          },
+          {
+            "rpn": "",
+            "dataPointName": "tx_errors",
+            "displayType": "raw",
+            "minValue": 0,
+            "unitLabel": "  pkts/sec.",
+            "maxValue": 100,
+            "colorThresholds": [],
+            "columnName": "Errors (Out)",
+            "enableForecast": false,
+            "roundingDecimal": 2
+          }
+        ],
+        "description": "",
+        "forecast": {
+          "severity": "warn",
+          "confidence": 70,
+          "timeRange": "Last 30 days",
+          "algorithm": "Linear"
+        },
+        "type": "dynamicTable",
+        "rows": [{
+          "instanceName": "##defaultInstanceName##",
+          "label": "##INSTANCE##",
+          "deviceDisplayName": "##defaultResourceName##",
+          "groupFullPath": "##defaultResourceGroup##"
+        }],
+        "version": 2,
+        "topX": 10,
+        "dataSourceFullName": "Network Interfaces (Linux_SSH_NetworkInterfaces)",
+        "sortOrder": "descending",
+        "name": "Interfaces by Discards and Errors (Real-time)",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "timescale": "day"
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 3,
+        "row": 22,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Interfaces by TCP Retransmission (Trend)",
+        "description": "",
+        "theme": "newBorderDarkBlue",
+        "interval": 1,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 25,
+          "maxValue": 100,
+          "dataPoints": [{
+            "dataPointName": "TCP_RetransmitPercent",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "TCP / UDP Stats (Linux_SSH_TCPUDP)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "Retransmissions",
+              "type": "line",
+              "option": "custom"
+            },
+            "name": "RetransPercent",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "%",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "VaST"
+        },
+        "type": "cgraph",
+        "timescale": "2days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 4,
+        "sizex": 3,
+        "row": 22,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Interfaces by TCP Segments (Trend)",
+        "description": "",
+        "theme": "newBorderDarkBlue",
+        "interval": 1,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 25,
+          "maxValue": "NaN",
+          "dataPoints": [
+            {
+              "dataPointName": "TCP_SegmentsOut",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "TCP / UDP Stats (Linux_SSH_TCPUDP)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": "Auto",
+                "legend": "tcpOutSegs",
+                "type": "line",
+                "option": "custom"
+              },
+              "name": "tcpOutSegs",
+              "aggregateFunction": "SUM",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "##defaultResourceName##"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "##defaultResourceGroup##"
+              }
+            },
+            {
+              "dataPointName": "TCP_Retransmits",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "TCP / UDP Stats (Linux_SSH_TCPUDP)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": "Auto",
+                "legend": "TCP_Retransmits",
+                "type": "line",
+                "option": "custom"
+              },
+              "name": "tcpRetransSegs",
+              "aggregateFunction": "SUM",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "##defaultResourceName##"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "##defaultResourceGroup##"
+              }
+            }
+          ],
+          "verticalLabel": "packets",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "VaST"
+        },
+        "type": "cgraph",
+        "timescale": "2days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 10,
+        "sizex": 3,
+        "row": 22,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Interfaces by UDP Datagrams (Trend)",
+        "description": "",
+        "theme": "newBorderDarkBlue",
+        "interval": 1,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 25,
+          "maxValue": "NaN",
+          "dataPoints": [
+            {
+              "dataPointName": "UDP_DatagramsIn",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "TCP / UDP Stats (Linux_SSH_TCPUDP)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": "Auto",
+                "legend": "In",
+                "type": "line",
+                "option": "custom"
+              },
+              "name": "UDPInDatagrams",
+              "aggregateFunction": "SUM",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "##defaultResourceName##"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "##defaultResourceGroup##"
+              }
+            },
+            {
+              "dataPointName": "UDP_DatagramsOut",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "TCP / UDP Stats (Linux_SSH_TCPUDP)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": "Auto",
+                "legend": "Out",
+                "type": "line",
+                "option": "custom"
+              },
+              "name": "UDPOutDatagrams",
+              "aggregateFunction": "SUM",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "##defaultResourceName##"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "##defaultResourceGroup##"
+              }
+            }
+          ],
+          "verticalLabel": "packets/second",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "VaST"
+        },
+        "type": "cgraph",
+        "timescale": "2days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 7,
+        "sizex": 3,
+        "row": 22,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Interfaces by UDP Errors (Trend)",
+        "description": "",
+        "theme": "newBorderDarkBlue",
+        "interval": 1,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 10,
+          "maxValue": "NaN",
+          "dataPoints": [{
+            "dataPointName": "UDP_ErrorsIn",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "TCP / UDP Stats (Linux_SSH_TCPUDP)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "UDP Drops",
+              "type": "line",
+              "option": "custom"
+            },
+            "name": "UDPDrops",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "drops/sec",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "VaST"
+        },
+        "type": "cgraph",
+        "timescale": "2days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 6,
+        "row": 15,
+        "sizey": 4
+      },
+      "config": {
+        "displaySettings": {
+          "columns": [
+            {
+              "visible": true,
+              "columnLabel": "\n        Name\n        \n    ",
+              "columnSize": 266,
+              "columnKey": "device-name-1452842526600"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            Packets (In)\n            \n        ",
+              "columnSize": 93,
+              "columnKey": "0"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            Octets (In)\n            \n        ",
+              "columnSize": 90,
+              "columnKey": "1"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            Inbound Network\n            \n        ",
+              "columnSize": 104,
+              "columnKey": "2"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            Packets (Out)\n            \n        ",
+              "columnSize": 104,
+              "columnKey": "3"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            Octets (Out)\n            \n        ",
+              "columnSize": 136,
+              "columnKey": "4"
+            },
+            {
+              "visible": true,
+              "columnLabel": "\n            Outbound Network\n            \n        ",
+              "columnSize": 101,
+              "columnKey": "5"
+            }
+          ],
+          "pageSize": "10"
+        },
+        "columns": [
+          {
+            "rpn": "",
+            "dataPointName": "rx_packets",
+            "displayType": "raw",
+            "minValue": 0,
+            "unitLabel": " pkts/sec.",
+            "maxValue": 100,
+            "colorThresholds": [],
+            "columnName": "Packets (In)",
+            "enableForecast": false,
+            "roundingDecimal": 0
+          },
+          {
+            "rpn": "",
+            "dataPointName": "rx_bits",
+            "displayType": "raw",
+            "minValue": 0,
+            "unitLabel": " oct/sec.",
+            "maxValue": 100,
+            "colorThresholds": [],
+            "columnName": "Octets (In)",
+            "enableForecast": false,
+            "roundingDecimal": 0
+          },
+          {
+            "rpn": "InboundNetwork/1000/1000",
+            "dataPointName": "rx_bits",
+            "displayType": "raw",
+            "minValue": 0,
+            "unitLabel": " Mbps",
+            "maxValue": 100,
+            "colorThresholds": [],
+            "columnName": "InboundNetwork",
+            "enableForecast": false,
+            "roundingDecimal": 2
+          },
+          {
+            "rpn": "",
+            "dataPointName": "tx_packets",
+            "displayType": "raw",
+            "minValue": 0,
+            "unitLabel": " pkts/sec.",
+            "maxValue": 100,
+            "colorThresholds": [],
+            "columnName": "Packets (Out)",
+            "enableForecast": false,
+            "roundingDecimal": 0
+          },
+          {
+            "rpn": "",
+            "dataPointName": "tx_bits",
+            "displayType": "raw",
+            "minValue": 0,
+            "unitLabel": " oct/sec.",
+            "maxValue": 100,
+            "colorThresholds": [],
+            "columnName": "Octets (Out)",
+            "enableForecast": false,
+            "roundingDecimal": 0
+          },
+          {
+            "rpn": "OutboundNetwork/1000/1000",
+            "dataPointName": "tx_bits",
+            "displayType": "raw",
+            "minValue": 0,
+            "unitLabel": " Mbps",
+            "maxValue": 100,
+            "colorThresholds": [],
+            "columnName": "OutboundNetwork",
+            "enableForecast": false,
+            "roundingDecimal": 2
+          }
+        ],
+        "description": "",
+        "forecast": {
+          "severity": "warn",
+          "confidence": 70,
+          "timeRange": "Last 30 days",
+          "algorithm": "Linear"
+        },
+        "type": "dynamicTable",
+        "rows": [{
+          "instanceName": "*",
+          "label": "##INSTANCE## - ##RESOURCENAME##",
+          "deviceDisplayName": "##defaultResourceName##",
+          "groupFullPath": "##defaultResourceGroup##"
+        }],
+        "version": 2,
+        "topX": 25,
+        "dataSourceFullName": "Network Interfaces (Linux_SSH_NetworkInterfaces)",
+        "sortOrder": "descending",
+        "name": "Interfaces: Throughput Statistics (Real-time)",
+        "theme": "newSolidDarkBlue",
+        "interval": 1,
+        "timescale": "day"
+      }
+    },
+    {
+      "position": {
+        "col": 4,
+        "sizex": 3,
+        "row": 3,
+        "sizey": 4
+      },
+      "config": {
+        "displaySettings": {},
+        "legend": "%",
+        "maxValue": 100,
+        "dataPoint": {
+          "rpn": "",
+          "dataPointName": "PercentUsedMemory",
+          "instanceName": "*",
+          "dataSourceFullName": "CPU / Memory (Linux_SSH_CPUMemory)",
+          "dataSeries": "average",
+          "aggregateFunction": "AVERAGE",
+          "deviceGroupFullPath": "##defaultResourceGroup##",
+          "deviceDisplayName": "##defaultResourceName##"
+        },
+        "description": "",
+        "displayUnit": "",
+        "type": "gauge",
+        "version": 2,
+        "minValue": 0,
+        "displayType": 0,
+        "peakTimeRange": "1hour",
+        "showPeak": true,
+        "name": "Memory Utilization",
+        "theme": "newBorderDarkBlue",
+        "interval": 1,
+        "timescale": "day",
+        "colorThresholds": null
+      }
+    },
+    {
+      "position": {
+        "col": 4,
+        "sizex": 3,
+        "row": 7,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Memory Utilization (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 1,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 10,
+          "maxValue": 100,
+          "dataPoints": [{
+            "dataPointName": "PercentUsedMemory",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "CPU / Memory (Linux_SSH_CPUMemory)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME##",
+              "type": "area",
+              "option": "custom"
+            },
+            "name": "PercentUsedMemory",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "%",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "default"
+        },
+        "type": "cgraph",
+        "timescale": "2days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 6,
+        "row": 19,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Network Interfaces by Inbound Throughput (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 1,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 25,
+          "maxValue": "NaN",
+          "dataPoints": [{
+            "dataPointName": "rx_bits",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "Network Interfaces (Linux_SSH_NetworkInterfaces)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME## ##INSTANCE##",
+              "type": "line",
+              "option": "custom"
+            },
+            "name": "InMbps",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "Mbps",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "default"
+        },
+        "type": "cgraph",
+        "timescale": "2days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 7,
+        "sizex": 6,
+        "row": 19,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Network Interfaces by Outbound Throughput (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 1,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 25,
+          "maxValue": "NaN",
+          "dataPoints": [{
+            "dataPointName": "tx_bits",
+            "instanceName": {
+              "isGlob": true,
+              "value": "*"
+            },
+            "dataSourceFullName": "Network Interfaces (Linux_SSH_NetworkInterfaces)",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME## ##INSTANCE##",
+              "type": "line",
+              "option": "custom"
+            },
+            "name": "OutMbps",
+            "aggregateFunction": "SUM",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "Mbps",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "default"
+        },
+        "type": "cgraph",
+        "timescale": "2days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 9,
+        "sizex": 4,
+        "row": 1,
+        "sizey": 2
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Ping Response",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 1,
+        "graphInfo": {
+          "virtualDataPoints": [],
+          "minValue": 0,
+          "topX": 0,
+          "maxValue": "NaN",
+          "dataPoints": [{
+            "dataPointName": "average",
+            "instanceName": {
+              "isGlob": false,
+              "value": "Ping"
+            },
+            "dataSourceFullName": "Ping",
+            "consolidateFunction": "average",
+            "display": {
+              "color": "Auto",
+              "legend": "Average Response Time",
+              "type": "area",
+              "option": "custom"
+            },
+            "name": "average",
+            "aggregateFunction": "AVERAGE",
+            "deviceDisplayName": {
+              "isGlob": true,
+              "value": "##defaultResourceName##"
+            },
+            "deviceGroupFullPath": {
+              "isGlob": true,
+              "value": "##defaultResourceGroup##"
+            }
+          }],
+          "verticalLabel": "ms",
+          "aggregate": true,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "VaST"
+        },
+        "type": "cgraph",
+        "timescale": "1day",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 4,
+        "row": 10,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Relative Filesystem Storage Utilization",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "type": "pieChart",
+        "timescale": "day",
+        "pieChartInfo": {
+          "maxSlicesCanBeShown": 10,
+          "virtualDataPoints": [],
+          "showLabelsAndLinesOnPC": true,
+          "counters": [],
+          "dataPoints": [{
+            "dataPointName": "PercentUsed",
+            "top10": true,
+            "instanceName": "*",
+            "dataSourceFullName": "Filesystems (Linux_SSH_Filesystems)",
+            "name": "PercentUsed",
+            "aggregateFunction": "SUM",
+            "deviceGroupFullPath": "##defaultResourceGroup##",
+            "deviceDisplayName": "##defaultResourceName##",
+            "aggregate": false
+          }],
+          "hideZeroPercentSlices": true,
+          "groupRemainingAsOthers": false,
+          "pieChartItems": [{
+            "dataPointName": "PercentUsed",
+            "color": "Auto",
+            "legend": "##INSTANCE##"
+          }],
+          "title": "Relative Filesystem Storage Utilization"
+        },
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 1,
+        "sizex": 4,
+        "row": 1,
+        "sizey": 2
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Resource Selector",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 15,
+        "type": "text",
+        "timescale": "day",
+        "version": 2,
+        "content": "<!-- \n\tDYNAMIC TOKEN UPDATER v1.8 (customized)\n\n\tThis script was created in response to users wanting a way to update groups and/or resources shown on a dashboard quickly & easily using some drop-down menus.\n\tNOTE: while this script leverages standard LogicMonitor APIs and features, this script itself is not officially supported by LogicMonitor.\n\n\tTo use this, just add a Text widget to your dashboard and in the widget's configuration screen click the \"source\" view then paste in this code. You can also just clone this widget to another dashboard on the same portal.\n\n\tAS NOTED BELOW, THIS CODE USES LOGICMONITOR API CALLS THAT REQUIRE A SET OF CREDENTIALS TO BE SET IN TOKENS ('apiID' & 'apiKey'), SO IF YOU EXPORT THIS DASHBOARD FOR USE ON ANOTHER PORTAL BE SURE TO REPLACE THOSE CREDENTIALS ON IMPORT!\n\n\t---\n\n\tPREREQUISITES:\n\tThere are a few dashboard tokens containing information that the Resource Selector will use:\n\n\t'apiID' & 'apiKey': A valid LogicMonitor API ID and key for this portal that will be used for REST API calls. The API account will need \"manage\" privileges for the dashboard where the widget's being used. Note: there's a place near the top of the script section below where you can optionally hard-code these two values instead of more openly exposing them in a token.\n\n\t'defaultResourceGroup': A common token used by the widgets on the dashboard. The 'Resource Group' drop-down menu will update this token.\n\n\t'defaultResourceName': (optional) A common token used by widgets on a dashboard. The 'Resource' drop-down menu will update this token. If not set then the script will hide the relevant menu.\n\n\t'defaultInstance': (optional) Token used by widgets on a dashboard for specifying instances to show data for. The 'Instance' drop-down menu will update this token upon clicking Go. Note that if you want to use the 'Instances' menu, it requires a named resource and a datasource to fetch instances for. If the 'defaultInstance' token or 'defaultDatasource' tokens aren't defined on the dashboard OR the 'Resource' menu is set to \"*\" then the 'Instance' menu will be hidden.\n\n\t'dynamicGroupParentID': (optional) The numeric ID of a parent group you want to limit the dynamic group drop-down to. Will default to the root group (ID 1) if not specified.\n\n\t'defaultDatasource': (optional) Name of a datasource that will be used for gathering instances that dynamically populate the 'Instances' drop-down menu.\n\n\t'hideDynamicGroupDropdown' or 'hideDynamicResourceDropdown' or 'hideDynamicInstanceDropdown': (optional) can be set to \"true\" to force the 'Resource Group', 'Resource', or 'Instance' drop-down (respectively) to be hidden. This allows the widget to be flexible for choosing a group, a resource, an instance, or any of them.\n\t\n\n\tSO HOW DOES THIS WORK?\n\n\tWhen this Text widget is first loaded, Javascript embedded in the HTML source makes a call to the LogicMonitor REST API to get a list of resource groups to populate options in the \"Resource Group\" drop-down. A list of resources within the selected group is then fetched to populate the Resource drop-down.\n\n\tWhen the 'Resource Group' menu is changed (if shown), the 'Resource' drop-down list will auto-update to reflect what's inside the newly chosen group. When the 'Resource' menu is changed, the 'Instance' drop-down list will auto-populate with a list of instances for the chosen resource for the datasource specified in the 'defaultDatasource' token.\n\n\tWhen the Go button is clicked, the script does the following actions:\n\t1. Makes note of the current dashboard's URL and ID.\n\t2. Calls LogicMonitor's \"Get Dashboard\" REST method to get the current dashboard definition.\n\t3. Loops through the dashboard's tokens retrieved during step #2 looking for 'defaultResourceGroup', 'defaultResourceName', and 'defaultInstance'. If found, it updates them in memory with the values chosen on the drop-downs (unless the respective field was set to be hidden).\n\t4. Calls LogicMonitor's \"Update Dashboard\" REST method to save the new token values.\n\t5. Refreshes the page to reflect the new values.\n-->\n<link href=\"https://static-prod.logicmonitor.com/sbui133-1/commons/stylesheets2/startup.css?v=220429\" rel=\"stylesheet\" />\n<style type=\"text/css\">#pickerControls {margin-top: 5px;}\n\t#pickerControls p {margin: 5px 3px;}\n\t#pickerControls td {padding: 5px 3px;}\n    #pickerControls label {color: white;}\n\t#resourceNameTitle {color: aquamarine; font-size: 30px; padding: 0 0 10px 0;}\n<\/style>\n<div id=\"pickerControls\">\n<div id=\"resourceNameTitle\">##defaultResourceName##<\/div>\n\n<table>\n\t<tbody>\n\t\t<tr id=\"groupPickerControls\">\n\t\t\t<td><label for=\"groupPicker\">Resource Group:<\/label><\/td>\n\t\t\t<td><select id=\"groupPicker\" onchange=\"populateResourceDropdown();\"><option value=\"*\">*<\/option><\/select><\/td>\n\t\t<\/tr>\n\t\t<tr id=\"resourcePickerControls\">\n\t\t\t<td><label for=\"resourcePicker\">Resource:<\/label><\/td>\n\t\t\t<td><select id=\"resourcePicker\" onchange=\"populateInstanceDropdown();\"><option value=\"*\">*<\/option><\/select>\n\t\t\t<div class=\"loadingcircles32 loading-icon\" id=\"resourcePickerThrobber\" style=\"position:fixed; margin-top:-5px; display: none;\">\n\t\t\t<div class=\"circle32-gray circle32_01\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_02\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_03\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_04\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_05\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_06\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_07\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_08\">&nbsp;<\/div>\n\t\t\t<\/div>\n\t\t\t<\/td>\n\t\t<\/tr>\n\t\t<tr id=\"instancePickerControls\">\n\t\t\t<td><label for=\"instancePicker\">Instance:<\/label><\/td>\n\t\t\t<td><select id=\"instancePicker\"><option value=\"*\">*<\/option><\/select>\n\t\t\t<div class=\"loadingcircles32 loading-icon\" id=\"instancePickerThrobber\" style=\"position:fixed; margin-top:-5px; display: none;\">\n\t\t\t<div class=\"circle32-gray circle32_01\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_02\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_03\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_04\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_05\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_06\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_07\">&nbsp;<\/div>\n\n\t\t\t<div class=\"circle32-gray circle32_08\">&nbsp;<\/div>\n\t\t\t<\/div>\n\t\t\t<\/td>\n\t\t<\/tr>\n\t<\/tbody>\n<\/table>\n\n<p><button class=\"lm-button small blue animate\" onclick=\"updateDashboard();\">Go<\/button><\/p>\n<\/div>\n<script>\n\t// (OPTIONAL) You can set values for the ID and key needed for the LogicMonitor REST API calls inside the quotes of the two lines below. This allows the API keys to not be as visibly exposed. If either value (ID or key) is set as a dashboard token then it will override the value set here.\n\tvar apiID = \"\"\n\tvar apiKey = \"\"\n\n\t// (Part of this customization) Label we'll show instead of \"*\" if all resources are being shown...\n\tvar allDevicesLabel = \"All devices\"\n\n\t// Maximum number of groups and resources to retrieve...\n\tconst maxGroups = 500\n\tconst maxResources = 100\n\t// const vmPerfDatasourceName = \"VMware_vCenter_VMPerformance\"\n\t// ---\n\n\t// Capture information from specific dashboard tokens we'll be using...\n\n\t// Capture our API credentials from token...\n\tvar apiIDToken = \"##apiID##\"\n\tvar apiKeyToken = \"##apiKey##\"\n\t// If the token values weren't set then use the values hard-coded above in this script...\n\tif (apiIDToken != \"\\#\\#apiID\\#\\#\") {\n\t\tapiID = apiIDToken\n\t}\n\tif (apiKeyToken != \"\\#\\#apiKey\\#\\#\") {\n\t\tapiKey = apiKeyToken\n\t}\n\n\t// The names of the tokens we'll be updating...\n\tconst defaultResourceGroupTokenName = \"defaultResourceGroup\"\n\tconst defaultResourceNameTokenName = \"defaultResourceName\"\n\tconst defaultInstanceTokenName = \"defaultInstance\"\n\t// Capture the current values of the tokens...\n\t// (Like any token inserted into the Text widget, LogicMonitor automatically inserts these token values as the page is being rendered so Javascript is able to pick them as if the values were there originally. If a token isn't set then the variable's value will be literally what's shown below, including the double-hashtags.)\n\tvar defaultResourceGroupInitialValue = \"##defaultResourceGroup##\"\n\tvar defaultResourceNameInitialValue = \"##defaultResourceName##\"\n\tvar defaultInstanceInitialValue = \"##defaultInstance##\"\n\tvar defaultDatasourceInitialValue = \"##defaultDatasource##\"\n\tvar dynamicGroupParentID = \"##dynamicGroupParentID##\"\n\tvar hideDynamicGroupDropdown = \"##hideDynamicGroupDropdown##\"\n\tvar hideDynamicResourceDropdown = \"##hideDynamicResourceDropdown##\"\n\tvar hideDynamicInstanceDropdown = \"##hideDynamicInstanceDropdown##\"\n\t// The 'dynamicGroupParentID' is an optional token the user can set to limit the group list to a specific parent. Use the root group (ID 1) if the token wasn't set...\n\tif (isNaN(dynamicGroupParentID)) {\n\t\tdynamicGroupParentID = 1\n\t}\n\n\t// Prep variables to capture/set 'defaultResourceGroup' tokens...\n\tvar processGroupToken = true\n\t// Hide the Resource Group menu if a \"hideDynamicGroupDropdown\" token is set to \"true\"...\n\tif (hideDynamicGroupDropdown == \"true\") {\n\t\t// Hide the menu...\n\t\tdocument.querySelector(\"#groupPickerControls\").style.display = \"none\"\n\n\t\tprocessGroupToken = false\n\t}\n\n\t// Prep variables to capture/set 'defaultResourceName' tokens...\n\tvar processResourceToken = true\n\t// Hide the Resource menu if a \"defaultResourceName\" token wasn't preset or if a \"hideDynamicResourceDropdown\" token is set to \"true\"...\n\tif (defaultResourceNameInitialValue == \"\\#\\#defaultResourceName\\#\\#\" || hideDynamicResourceDropdown == \"true\") {\n\t\t// Hide the menu...\n\t\tdocument.querySelector(\"#resourcePickerControls\").style.display = \"none\"\n\n\t\tprocessResourceToken = false\n\t}\n\n\t// Prep variables to capture/set 'defaultInstance' tokens...\n\tvar processInstanceToken = true\n\t// Hide the Instance menu if \"defaultInstance\" or \"defaultDatasource\" tokens weren't preset, or if a \"hideDynamicInstanceDropdown\" token is set to \"true\"...\n\tif (defaultInstanceInitialValue == \"\\#\\#defaultInstance\\#\\#\" || defaultDatasourceInitialValue == \"\\#\\#defaultDatasource\\#\\#\" || defaultResourceNameInitialValue == \"*\" || hideDynamicInstanceDropdown == \"true\") {\n\t\t// Hide the menu...\n\t\t// document.querySelector(\"#instancePickerControls\").style.display = \"none\"\n\t\tshowInstanceFields(false)\n\n\t\tprocessInstanceToken = false\n\n\t\t// Default our instance value...\n\t\tdefaultInstanceInitialValue = \"*\"\n\t}\n\n\t// ---\n\n\t// Capture information about the current dashboard for use in subsequent REST calls...\n\tvar hostName = parent.window.location.host\n\tvar locationHash = parent.window.location.hash // example result: \"#dashboard=21\"\n\tvar dashboardID = locationHash.replace(\"#dashboard=\", \"\")\n\n\t// Encoder to convert strings to Uint8Array for API signatures...\n\tvar enc = new TextEncoder(\"utf-8\")\n\n\t// If showing all resources, change our resource title to something more friendly than \"*\"...\n\tif (defaultResourceNameInitialValue == \"*\") {\n\t\tdocument.querySelector(\"#resourceNameTitle\").innerText = allDevicesLabel\n\t}\n\n\t// Populate the drop-downs...\n\tif (processGroupToken) {\n\t\tpopulateGroupDropdown()\n\t} else if (processResourceToken) {\n\t\tpopulateResourceDropdown()\n\t} else {\n\t\tpopulateInstanceDropdown()\n\t}\n\n\t// ----- FUNCTIONS\n\n\t// Function processing status of Fetch calls...\n\tfunction status(response) {\n\t  if (response.status >= 200 && response.status < 300) {\n\t    return Promise.resolve(response)\n\t  } else {\n\t    return Promise.reject(new Error(response.statusText))\n\t  }\n\t}\n\n\n\t// Pre-processor for JSON responses from Fetch calls...\n\tfunction json(response) {\n\t  return response.json()\n\t}\n\n\n\tfunction showInstanceFields(visible) {\n\t\tif (visible) {\n\t\t\t// Show the menu...\n\t\t\tdocument.querySelector(\"#instancePickerControls\").style.display = \"contents\"\n\t\t} else {\n\t\t\t// Hide the menu...\n\t\t\tdocument.querySelector(\"#instancePickerControls\").style.display = \"none\"\n\t\t}\n\t}\n\n\n\t// Function for retrieving a list of groups from LogicMonitor and populating the appropriate drop-down...\n\tfunction populateGroupDropdown() {\n\t\t// Request Details...\n\t\tvar httpVerb = \"GET\"\n\t\tvar epoch = (new Date).getTime()\n\t\tvar resourcePath = \"/device/groups\"\n\t\tvar queryParams = \"?sort=fullPath&fields=id,fullPath&size=\" + maxGroups + \"&filter=numOfHosts>0\"\n\n\t\t// Construct signature... \n\t\tvar requestVars = httpVerb + epoch + resourcePath\n\n\t\t// Prep our URL & query for the REST call (note: the query is set to exclude empty groups)...\n\t\tif (dynamicGroupParentID != 1) {\n\t\t\t// If a parent group was defined...\n\t\t\tvar queryParams = queryParams + \",parentId:\" + dynamicGroupParentID\n\t\t}\n\t\tvar apiURL = \"https://\" + hostName + \"/santaba/rest\" + resourcePath + queryParams\n\n\t\t// Create our API signature...\n\t\twindow.crypto.subtle.importKey(\n\t\t    \"raw\", // raw format of the key - should be Uint8Array\n\t\t    enc.encode(apiKey),\n\t\t    { // algorithm details\n\t\t        name: \"HMAC\",\n\t\t        hash: {name: \"SHA-256\"}\n\t\t    },\n\t\t    false, // export = false\n\t\t    [\"sign\", \"verify\"] // what this key can do\n\t\t).then( key => {\n\t\t    window.crypto.subtle.sign(\n\t\t        \"HMAC\",\n\t\t        key,\n\t\t        enc.encode(requestVars)\n\t\t    ).then(signature => {\n\t\t        var b = new Uint8Array(signature)\n\t\t        var hmacX = Array.prototype.map.call(b, x => ('00'+x.toString(16)).slice(-2)).join(\"\")\n\t\t        var signature = btoa(hmacX)\n\n\t\t        // Construct auth header...\n\t\t        var auth = \"LMv1 \" + apiID + \":\" + signature + \":\" + epoch\n\n\t\t        // We now have what's needed for LMv1 API Token authentication. Let's make our API call...\n\n\t\t\t\t// Call the LogicMonitor API to get a list of groups...\n\t\t\t\tfetch(apiURL, {\n\t\t\t\t\tmethod: httpVerb,\n\t\t\t\t\theaders: {\n\t\t\t\t\t\t'Content-Type': 'application/json;charset=utf-8',\n\t\t\t\t\t\t'Authorization': auth\n\t\t\t\t\t},\n\t\t\t\t})\n\t\t\t\t.then(status)\n\t\t\t\t.then(json)\n\t\t\t\t.then(function(data) {\n\t\t\t\t\t// console.log('Group request succeeded with JSON response', data)\n\n\t\t\t\t\t// Populate the alert groups drop-down...\n\t\t\t\t\tdata.data.items.forEach(thisItem => {\n\t\t\t\t\t\tif (thisItem.fullPath != \"\") {\n\t\t\t\t\t\t\tvar option = document.createElement(\"option\")\n\t\t\t\t\t\t\toption.text = thisItem.fullPath\n\t\t\t\t\t\t\toption.value = thisItem.fullPath\n\t\t\t\t\t\t\toption.setAttribute(\"data-id\", thisItem.id)\n\t\t\t\t\t\t\t// As we loop through, pre-select the group that matches the dashboard's current token...\n\t\t\t\t\t\t\tif (thisItem.fullPath == defaultResourceGroupInitialValue) {\n\t\t\t\t\t\t\t\toption.selected = true\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t// Add the option to the drop-down...\n\t\t\t\t\t\t\tdocument.getElementById(\"groupPicker\").add(option)\n\t\t\t\t\t\t}\n\t\t\t\t\t})\n\n\t\t\t\t\t// Update the resource drop-down (if appropriate)...\n\t\t\t\t\tif (processResourceToken) {\n\t\t\t\t\t\tpopulateResourceDropdown()\n\t\t\t\t\t}\n\t\t\t\t})\n\t\t    })\n\t\t})\n\t}\n\n\n\tfunction populateResourceDropdown() {\n\t\t// Reset the drop-down menu between refreshes (but leave \"*\" as the top option)...\n\t\tfor (var i = document.getElementById(\"resourcePicker\").options.length; i > 0; i--) {\n\t\t\tdocument.getElementById(\"resourcePicker\").remove(i)\n\t\t}\n\n\t\tvar selectedGroup = defaultResourceGroupInitialValue\n\t\tif (processGroupToken) {\n\t\t\t// Get the value of the Resource Group drop-down...\n\t\t\tvar selectedGroup = document.getElementById(\"groupPicker\").value\n\t\t}\n\n\t\t// Display the loading icon...\n\t\tdocument.querySelector(\"#resourcePickerThrobber\").style.display = \"inline-block\"\n\n\t\t// Get resources...\n\n\t\t// Request Details...\n\t\tvar httpVerb = \"GET\"\n\t\tvar epoch = (new Date).getTime()\n\t\tvar resourcePath = \"/device/devices\"\n\t\tvar queryParams = \"?sort=displayName&size=\" + maxResources + \"&fields=id,displayName,systemProperties\"\n\t\tif (selectedGroup != \"*\") {\n\t\t\tqueryParams = queryParams + \"&filter=systemProperties.name:system.groups,systemProperties.value~\" + selectedGroup\n\t\t}\n\n\t\t// Construct signature... \n\t\tvar requestVars = httpVerb + epoch + resourcePath\n\n\t\t// Prep our URL & query for the REST call...\n\t\tvar apiURL = \"https://\" + hostName + \"/santaba/rest\" + resourcePath + queryParams\n\n\t\t// Create our API signature...\n\t\twindow.crypto.subtle.importKey(\n\t\t    \"raw\", // raw format of the key - should be Uint8Array\n\t\t    enc.encode(apiKey),\n\t\t    { // algorithm details\n\t\t        name: \"HMAC\",\n\t\t        hash: {name: \"SHA-256\"}\n\t\t    },\n\t\t    false, // export = false\n\t\t    [\"sign\", \"verify\"] // what this key can do\n\t\t).then( key => {\n\t\t    window.crypto.subtle.sign(\n\t\t        \"HMAC\",\n\t\t        key,\n\t\t        enc.encode(requestVars)\n\t\t    ).then(signature => {\n\t\t        var b = new Uint8Array(signature)\n\t\t        var hmacX = Array.prototype.map.call(b, x => ('00'+x.toString(16)).slice(-2)).join(\"\")\n\t\t        var signature = btoa(hmacX)\n\n\t\t        // Construct auth header...\n\t\t        var auth = \"LMv1 \" + apiID + \":\" + signature + \":\" + epoch\n\n\t\t        // We now have what's needed for LMv1 API Token authentication. Let's make our API call...\n\n\t\t\t\t// Call the LogicMonitor API to get a list of the group's resources...\n\t\t\t\tfetch(apiURL, {\n\t\t\t\t\tmethod: httpVerb,\n\t\t\t\t\theaders: {\n\t\t\t\t\t\t'Content-Type': 'application/json;charset=utf-8',\n\t\t\t\t\t\t'Authorization': auth\n\t\t\t\t\t},\n\t\t\t\t})\n\t\t\t\t.then(status)\n\t\t\t\t.then(json)\n\t\t\t\t.then(function(data) {\n\t\t\t\t\t// console.log('Resource request succeeded with JSON response', data)\n\n\t\t\t\t\t// Populate the drop-down...\n\t\t\t\t\tdata.data.items.forEach(thisItem => {\n\t\t\t\t\t\tif (thisItem.fullPath != \"\") {\n\t\t\t\t\t\t\tvar option = document.createElement(\"option\")\n\t\t\t\t\t\t\toption.text = thisItem.displayName\n\t\t\t\t\t\t\toption.value = thisItem.displayName\n\t\t\t\t\t\t\toption.setAttribute(\"data-id\", thisItem.id)\n\t\t\t\t\t\t\t// As we loop through, pre-select the resource that matches the dashboard's current token...\n\t\t\t\t\t\t\tif (thisItem.displayName == defaultResourceNameInitialValue) {\n\t\t\t\t\t\t\t\toption.selected = true\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t// Add the option to the drop-down...\n\t\t\t\t\t\t\tdocument.getElementById(\"resourcePicker\").add(option)\n\t\t\t\t\t\t}\n\t\t\t\t\t})\n\n\t\t\t\t\t// Hide the loading icon...\n\t\t\t\t\tdocument.querySelector(\"#resourcePickerThrobber\").style.display = \"none\"\n\n\t\t\t\t\t// if (processInstanceToken) {\n\t\t\t\t\t\tpopulateInstanceDropdown()\n\t\t\t\t\t// }\n\t\t\t\t})\n\t\t    })\n\t\t})\n\t}\n\n\n\tfunction populateInstanceDropdown() {\n\t\tif (processInstanceToken && document.getElementById(\"resourcePicker\").value != \"*\") {\n\n\t\t\tshowInstanceFields(true)\n\n\t\t\t// Reset the drop-down menu between refreshes (but leave \"*\" as the top option)...\n\t\t\tfor (var i = document.getElementById(\"instancePicker\").options.length; i > 0; i--) {\n\t\t\t\tdocument.getElementById(\"instancePicker\").remove(i)\n\t\t\t}\n\n\t\t\tvar selectedGroup = defaultResourceGroupInitialValue\n\t\t\tvar selectedResource = defaultResourceNameInitialValue\n\t\t\tvar selectedResourceID = 0\n\t\t\tif (processGroupToken) {\n\t\t\t\t// Get the value of the Resource Group drop-down...\n\t\t\t\tselectedGroup = document.getElementById(\"groupPicker\").value\n\t\t\t} else {\n\t\t\t\tselectedGroup = \"*\"\n\t\t\t}\n\t\t\tif (processResourceToken) {\n\t\t\t\t// Get the ID of the selected item on the Resource drop-down...\n\t\t\t\tselectedResourceID = document.getElementById(\"resourcePicker\")[document.getElementById(\"resourcePicker\").selectedIndex].getAttribute(\"data-id\")\n\t\t\t}\n\n\t\t\t// Display the loading icon...\n\t\t\tdocument.querySelector(\"#instancePickerThrobber\").style.display = \"inline-block\"\n\n\t\t\t// Get ID of our default datasource (the ID is different than the datasource URI seen in the LogicMonitor portal)...\n\n\t\t\t// Request Details...\n\t\t\tvar httpVerb = \"GET\"\n\t\t\tvar epoch = (new Date).getTime()\n\t\t\tvar resourcePath = \"/device/devices/\" + selectedResourceID + '/devicedatasources'\n\t\t\tvar queryParams = \"?sort=displayName&size=\" + maxResources + \"&fields=id,dataSourceName,instanceNumber&filter=dataSourceName:\" + defaultDatasourceInitialValue\n\t\t\t// if (selectedGroup != \"*\") {\n\t\t\t// \tqueryParams = queryParams + \"&filter=dataSourceName:\" + defaultDatasourceInitialValue\n\t\t\t// }\n\n\t\t\t// Construct signature... \n\t\t\tvar requestVars = httpVerb + epoch + resourcePath\n\n\t\t\t// Prep our URL & query for the REST call...\n\t\t\tvar apiURL = \"https://\" + hostName + \"/santaba/rest\" + resourcePath + queryParams\n\n\t\t\t// Create our API signature...\n\t\t\twindow.crypto.subtle.importKey(\n\t\t\t    \"raw\", // raw format of the key - should be Uint8Array\n\t\t\t    enc.encode(apiKey),\n\t\t\t    { // algorithm details\n\t\t\t        name: \"HMAC\",\n\t\t\t        hash: {name: \"SHA-256\"}\n\t\t\t    },\n\t\t\t    false, // export = false\n\t\t\t    [\"sign\", \"verify\"] // what this key can do\n\t\t\t).then( key => {\n\t\t\t    window.crypto.subtle.sign(\n\t\t\t        \"HMAC\",\n\t\t\t        key,\n\t\t\t        enc.encode(requestVars)\n\t\t\t    ).then(signature => {\n\t\t\t        var b = new Uint8Array(signature)\n\t\t\t        var hmacX = Array.prototype.map.call(b, x => ('00'+x.toString(16)).slice(-2)).join(\"\")\n\t\t\t        var signature = btoa(hmacX)\n\n\t\t\t        // Construct auth header...\n\t\t\t        var auth = \"LMv1 \" + apiID + \":\" + signature + \":\" + epoch\n\n\t\t\t        // We now have what's needed for LMv1 API Token authentication. Let's make our API call...\n\n\t\t\t\t\t// Call the LogicMonitor API to get a list of the group's resources...\n\t\t\t\t\tfetch(apiURL, {\n\t\t\t\t\t\tmethod: httpVerb,\n\t\t\t\t\t\theaders: {\n\t\t\t\t\t\t\t'Content-Type': 'application/json;charset=utf-8',\n\t\t\t\t\t\t\t'Authorization': auth\n\t\t\t\t\t\t},\n\t\t\t\t\t})\n\t\t\t\t\t.then(status)\n\t\t\t\t\t.then(json)\n\t\t\t\t\t.then(function(data) {\n\t\t\t\t\t\t// console.log('Datasource request succeeded with JSON response', data)\n\n\t\t\t\t\t\tvar vmPerfDatasourceID = 0\n\n\t\t\t\t\t\t// Populate the drop-down...\n\t\t\t\t\t\tdata.data.items.forEach(thisItem => {\n\t\t\t\t\t\t\t// Check to make sure we have a numeric datasource ID...\n\t\t\t\t\t\t\tif (!isNaN(thisItem.id)) {\n\t\t\t\t\t\t\t\tvmPerfDatasourceID = thisItem.id\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t})\n\t\t\t\t\t\t// console.log('Datasource ID: ' + vmPerfDatasourceID)\n\n\n\t\t\t\t\t\t// Get list of instance names for the datasource...\n\n\n\t\t\t\t\t\t// Request Details...\n\t\t\t\t\t\tvar httpVerb = \"GET\"\n\t\t\t\t\t\tvar epoch = (new Date).getTime()\n\t\t\t\t\t\t// /device/devices/{deviceId}/devicedatasources/{deviceDatasourceId}/instances\n\t\t\t\t\t\tvar resourcePath = \"/device/devices/\" + selectedResourceID + '/devicedatasources/' + vmPerfDatasourceID + '/instances'\n\t\t\t\t\t\tvar queryParams = \"?sort=displayName&size=\" + maxResources + \"&fields=id,name,displayName\"\n\n\t\t\t\t\t\t// Construct signature... \n\t\t\t\t\t\tvar requestVars = httpVerb + epoch + resourcePath\n\n\t\t\t\t\t\t// Prep our URL & query for the REST call...\n\t\t\t\t\t\tvar apiURL = \"https://\" + hostName + \"/santaba/rest\" + resourcePath + queryParams\n\n\t\t\t\t\t\t// Create our API signature...\n\t\t\t\t\t\twindow.crypto.subtle.importKey(\n\t\t\t\t\t\t    \"raw\", // raw format of the key - should be Uint8Array\n\t\t\t\t\t\t    enc.encode(apiKey),\n\t\t\t\t\t\t    { // algorithm details\n\t\t\t\t\t\t        name: \"HMAC\",\n\t\t\t\t\t\t        hash: {name: \"SHA-256\"}\n\t\t\t\t\t\t    },\n\t\t\t\t\t\t    false, // export = false\n\t\t\t\t\t\t    [\"sign\", \"verify\"] // what this key can do\n\t\t\t\t\t\t).then( key => {\n\t\t\t\t\t\t    window.crypto.subtle.sign(\n\t\t\t\t\t\t        \"HMAC\",\n\t\t\t\t\t\t        key,\n\t\t\t\t\t\t        enc.encode(requestVars)\n\t\t\t\t\t\t    ).then(signature => {\n\t\t\t\t\t\t        var b = new Uint8Array(signature)\n\t\t\t\t\t\t        var hmacX = Array.prototype.map.call(b, x => ('00'+x.toString(16)).slice(-2)).join(\"\")\n\t\t\t\t\t\t        var signature = btoa(hmacX)\n\n\t\t\t\t\t\t        // Construct auth header...\n\t\t\t\t\t\t        var auth = \"LMv1 \" + apiID + \":\" + signature + \":\" + epoch\n\n\t\t\t\t\t\t        // We now have what's needed for LMv1 API Token authentication. Let's make our API call...\n\n\t\t\t\t\t\t\t\t// Call the LogicMonitor API to get a list of the group's resources...\n\t\t\t\t\t\t\t\tfetch(apiURL, {\n\t\t\t\t\t\t\t\t\tmethod: httpVerb,\n\t\t\t\t\t\t\t\t\theaders: {\n\t\t\t\t\t\t\t\t\t\t'Content-Type': 'application/json;charset=utf-8',\n\t\t\t\t\t\t\t\t\t\t'Authorization': auth\n\t\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\t})\n\t\t\t\t\t\t\t\t.then(status)\n\t\t\t\t\t\t\t\t.then(json)\n\t\t\t\t\t\t\t\t.then(function(data) {\n\t\t\t\t\t\t\t\t\t// console.log('Instance request succeeded with JSON response', data)\n\n\t\t\t\t\t\t\t\t\t// Populate the drop-down...\n\t\t\t\t\t\t\t\t\tdata.data.items.forEach(thisItem => {\n\t\t\t\t\t\t\t\t\t\tif (thisItem.fullPath != \"\") {\n\t\t\t\t\t\t\t\t\t\t\tvar option = document.createElement(\"option\")\n\t\t\t\t\t\t\t\t\t\t\toption.text = thisItem.displayName\n\t\t\t\t\t\t\t\t\t\t\t// Set the option value to the instance name and escape any backslashes...\n\t\t\t\t\t\t\t\t\t\t\toption.value = thisItem.displayName.replace(\"\\\\\", \"\\\\\\\\\")\n\t\t\t\t\t\t\t\t\t\t\toption.setAttribute(\"data-id\", thisItem.id)\n\t\t\t\t\t\t\t\t\t\t\t// As we loop through, pre-select the instance that matches the dashboard's current token...\n\t\t\t\t\t\t\t\t\t\t\tif (thisItem.displayName == defaultInstanceInitialValue) {\n\t\t\t\t\t\t\t\t\t\t\t\toption.selected = true\n\t\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t\t\t// Add the option to the drop-down...\n\t\t\t\t\t\t\t\t\t\t\tdocument.getElementById(\"instancePicker\").add(option)\n\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t})\n\n\t\t\t\t\t\t\t\t\t// console.log('Datasource ID: ' + vmPerfDatasourceID)\n\n\t\t\t\t\t\t\t\t\t// Hide the loading icon...\n\t\t\t\t\t\t\t\t\tdocument.querySelector(\"#instancePickerThrobber\").style.display = \"none\"\n\t\t\t\t\t\t\t\t})\n\t\t\t\t\t\t    })\n\t\t\t\t\t\t})\n\n\n\n\t\t\t\t\t\t// Hide the loading icon...\n\t\t\t\t\t\tdocument.querySelector(\"#instancePickerThrobber\").style.display = \"none\"\n\t\t\t\t\t})\n\t\t\t    })\n\t\t\t})\n\t\t} else {\n\t\t\tshowInstanceFields(false)\n\t\t}\n\t}\n\n\n\tfunction updateDashboard() {\n\t\t// Get the selected values of our drop-down menus...\n\t\tvar newResourceGroup = document.getElementById(\"groupPicker\").value\n\t\tvar newResource = document.getElementById(\"resourcePicker\").value\n\t\tvar newInstance = document.getElementById(\"instancePicker\").value\n\n\t\t// Request Details...\n\t\tvar httpVerb = \"GET\"\n\t\tvar epoch = (new Date).getTime()\n\t\tvar resourcePath = \"/dashboard/dashboards/\" + dashboardID\n\t\tvar queryParams = \"\"\n\n\t\t// Construct signature...\n\t\tvar requestVars = httpVerb + epoch + resourcePath\n\n\t\t// Prep our URL & query for the REST call...\n\t\tvar apiURL = \"https://\" + hostName + \"/santaba/rest\" + resourcePath + queryParams\n\n\t\t// Create our API signature...\n\t\twindow.crypto.subtle.importKey(\n\t\t    \"raw\", // raw format of the key - should be Uint8Array\n\t\t    enc.encode(apiKey),\n\t\t    { // algorithm details\n\t\t        name: \"HMAC\",\n\t\t        hash: {name: \"SHA-256\"}\n\t\t    },\n\t\t    false, // export = false\n\t\t    [\"sign\", \"verify\"] // what this key can do\n\t\t).then( key => {\n\t\t    window.crypto.subtle.sign(\n\t\t        \"HMAC\",\n\t\t        key,\n\t\t        enc.encode(requestVars)\n\t\t    ).then(signature => {\n\t\t        var b = new Uint8Array(signature)\n\t\t        var hmacX = Array.prototype.map.call(b, x => ('00'+x.toString(16)).slice(-2)).join(\"\")\n\t\t        var signature = btoa(hmacX)\n\n\t\t        // Construct auth header...\n\t\t        var auth = \"LMv1 \" + apiID + \":\" + signature + \":\" + epoch\n\n\t\t        // We now have what's needed for LMv1 API Token authentication. Let's make our API call...\n\n\t\t\t\t// Call the API to get the current dashboard definition...\n\t\t\t\tfetch(apiURL, {\n\t\t\t\t\tmethod: httpVerb,\n\t\t\t\t\theaders: {\n\t\t\t\t\t\t'Content-Type': 'application/json;charset=utf-8',\n\t\t\t\t\t\t'Authorization': auth\n\t\t\t\t\t},\n\t\t\t\t})\n\t\t\t\t.then(status)\n\t\t\t\t.then(json)\n\t\t\t\t.then(function(data) {\n\t\t\t\t\t// console.log('Get Dashboard request succeeded with JSON response', data)\n\n\t\t\t\t\t// Loop through the dashboard's tokens looking for the one(s) we want to change...\n\t\t\t\t\tdata.data.widgetTokens.forEach(thisToken => {\n\t\t\t\t\t\t// Resource group...\n\t\t\t\t\t\tif (processGroupToken && thisToken.name == defaultResourceGroupTokenName) {\n\t\t\t\t\t\t\tthisToken.value = newResourceGroup\n\t\t\t\t\t\t}\n\t\t\t\t\t\t// Resource...\n\t\t\t\t\t\tif (processResourceToken && thisToken.name == defaultResourceNameTokenName) {\n\t\t\t\t\t\t\tthisToken.value = newResource\n\t\t\t\t\t\t}\n\t\t\t\t\t\t// Instance...\n\t\t\t\t\t\tif (processInstanceToken && document.getElementById(\"resourcePicker\").value != \"*\" && thisToken.name == defaultInstanceTokenName) {\n\t\t\t\t\t\t\tthisToken.value = newInstance\n\t\t\t\t\t\t}\n\t\t\t\t\t})\n\n\t\t\t        // Build the JSON body we'll be posting to update the dashboard data...\n\t\t\t        var dashData = data.data\n\t\t\t        postBody = JSON.stringify({\"groupId\":dashData.groupId, \"widgetsConfig\":dashData.widgetsConfig, \"name\":dashData.name, \"description\":dashData.description, \"sharable\":dashData.sharable, \"owner\":dashData.owner, \"groupName\":dashData.groupName, \"useDynamicWidget\":dashData.useDynamicWidget, \"widgetTokens\":dashData.widgetTokens})\n\n\t\t\t\t\t// Prep details for the call to update the dashboard...\n\t\t\t\t\thttpVerb = \"PUT\"\n\t\t\t\t\tvar epoch = (new Date).getTime()\n\t\t\t\t\tvar resourcePath = \"/dashboard/dashboards/\" + dashboardID\n\t\t\t\t\tvar queryParams = \"\"\n\n\t\t\t\t\t// Construct signature... \n\t\t\t\t\tvar requestVars = httpVerb + epoch + postBody + resourcePath\n\n\t\t\t\t\t// Prep our URL & query for the REST call...\n\t\t\t\t\tvar apiURL = \"https://\" + hostName + \"/santaba/rest\" + resourcePath + queryParams\n\n\t\t\t\t\t// Create our API signature...\n\t\t\t\t\twindow.crypto.subtle.importKey(\n\t\t\t\t\t    \"raw\", // raw format of the key - should be Uint8Array\n\t\t\t\t\t    enc.encode(apiKey),\n\t\t\t\t\t    { // algorithm details\n\t\t\t\t\t        name: \"HMAC\",\n\t\t\t\t\t        hash: {name: \"SHA-256\"}\n\t\t\t\t\t    },\n\t\t\t\t\t    false, // export = false\n\t\t\t\t\t    [\"sign\", \"verify\"] // what this key can do\n\t\t\t\t\t).then( key => {\n\t\t\t\t\t    window.crypto.subtle.sign(\n\t\t\t\t\t        \"HMAC\",\n\t\t\t\t\t        key,\n\t\t\t\t\t        enc.encode(requestVars)\n\t\t\t\t\t    ).then(signature => {\n\t\t\t\t\t        var b = new Uint8Array(signature)\n\t\t\t\t\t        var hmacX = Array.prototype.map.call(b, x => ('00'+x.toString(16)).slice(-2)).join(\"\")\n\t\t\t\t\t        var signature = btoa(hmacX)\n\n\t\t\t\t\t        // Construct auth header...\n\t\t\t\t\t        var auth = \"LMv1 \" + apiID + \":\" + signature + \":\" + epoch\n\n\t\t\t\t\t        // We now have what's needed for LMv1 API Token authentication. Let's make our API call...\n\n\t\t\t\t\t\t\t// Update the dashboard definition via API...\n\t\t\t\t\t\t\tfetch(apiURL, {\n\t\t\t\t\t\t\t\tmethod: httpVerb,\n\t\t\t\t\t\t\t\theaders: {\n\t\t\t\t\t\t\t\t\t'Content-Type': 'application/json; charset=UTF-8',\n\t\t\t\t\t\t\t\t\t'Authorization': auth\n\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\tbody: postBody\n\t\t\t\t\t\t\t})\n\t\t\t\t\t\t\t.then(json)\n\t\t\t\t\t\t\t.then(function(data) {\n\t\t\t\t\t\t\t\t// console.log('Update Dashboard request succeeded with JSON response', data)\n\n\t\t\t\t\t\t\t\t// Reload the page to reflect the new token values...\n\t\t\t\t\t\t\t\tparent.location.reload()\n\t\t\t\t\t\t\t})\n\t\t\t\t\t\t\t.catch(function(error) {\n\t\t\t\t\t\t\t\tconsole.log('Request failed', error)\n\t\t\t\t\t\t\t})\n\t\t\t\t\t    })\n\t\t\t\t\t})\n\t\t\t\t})\n\t\t    })\n\t\t})\n\t}\n<\/script>"
+      }
+    },
+    {
+      "position": {
+        "col": 5,
+        "sizex": 8,
+        "row": 10,
+        "sizey": 3
+      },
+      "config": {
+        "displaySettings": {},
+        "name": "Total Disk IO (Trend)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 1,
+        "graphInfo": {
+          "virtualDataPoints": [{
+            "rpn": "ReadOperations + WriteOperations",
+            "display": {
+              "color": "Auto",
+              "legend": "##RESOURCENAME## - ##INSTANCE##",
+              "type": "area",
+              "option": "custom"
+            },
+            "name": "TotalOperations"
+          }],
+          "minValue": 0,
+          "topX": 25,
+          "maxValue": "NaN",
+          "dataPoints": [
+            {
+              "dataPointName": "reads",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "Block Device Performance (Linux_SSH_BlockDevicePerformance)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": null,
+                "legend": null,
+                "type": "line",
+                "option": "none"
+              },
+              "name": "ReadOperations",
+              "aggregateFunction": "SUM",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "##defaultResourceName##"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "##defaultResourceGroup##"
+              }
+            },
+            {
+              "dataPointName": "writes",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "Block Device Performance (Linux_SSH_BlockDevicePerformance)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": null,
+                "legend": null,
+                "type": "line",
+                "option": "none"
+              },
+              "name": "WriteOperations",
+              "aggregateFunction": "SUM",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "##defaultResourceName##"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "##defaultResourceGroup##"
+              }
+            }
+          ],
+          "verticalLabel": "IOPS",
+          "aggregate": false,
+          "desc": true,
+          "scaleUnit": 1000,
+          "globalConsolidateFunction": "VaST"
+        },
+        "type": "cgraph",
+        "timescale": "2days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 7,
+        "sizex": 2,
+        "row": 1,
+        "sizey": 2
+      },
+      "config": {
+        "bigNumberInfo": {
+          "virtualDataPoints": [],
+          "counters": [],
+          "dataPoints": [{
+            "dataPointName": "UptimeDays",
+            "instanceName": "*",
+            "dataSourceFullName": "Uptime (Linux_SSH_Uptime)",
+            "name": "UptimeDays",
+            "aggregateFunction": "AVERAGE",
+            "deviceGroupFullPath": "##defaultResourceGroup##",
+            "deviceDisplayName": "##defaultResourceName##"
+          }],
+          "bigNumberItems": [{
+            "dataPointName": "UptimeDays",
+            "useCommaSeparators": true,
+            "bottomLabel": "",
+            "rounding": 1,
+            "position": 1,
+            "rightLabel": "days",
+            "colorThresholds": null
+          }]
+        },
+        "displaySettings": {},
+        "name": "Uptime (Average)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "type": "bigNumber",
+        "timescale": "day",
+        "version": 2
+      }
+    }
+  ],
+  "version": 2
+}
