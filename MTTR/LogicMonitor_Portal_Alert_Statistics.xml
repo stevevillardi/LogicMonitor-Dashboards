@@ -1,0 +1,809 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<feed  version="1.0" hasPendingRequests="false" >
+  <company></company>
+  <status>200</status>
+  <errmsg>OK</errmsg>
+  <interval>0</interval>
+    <entry type="predatasource">
+        <version>1688092250</version>
+        <name>LogicMonitor_Portal_Alert_Statistics</name>
+        <displayedas>LogicMonitor Portal Alert Statistics</displayedas>
+        <description>Tracks MTTR average over a rolling period, defaults to 7 days.</description>
+        <collector>script</collector>
+        <hasMultiInstances>false</hasMultiInstances>
+        <useWildValueAsUniqueIdentifier>false</useWildValueAsUniqueIdentifier>
+        <schedule>900</schedule>
+        <appliesTo>hasCategory(&#34;LogicMonitorPortal&#34;)</appliesTo>
+        <wildcardauto>false</wildcardauto>
+        <wildcardpersist>false</wildcardpersist>
+        <wildcardlinuxscript></wildcardlinuxscript>
+        <wildcardlinuxcmdline></wildcardlinuxcmdline>
+        <wildcardwinscript></wildcardwinscript>
+        <wildcardwincmdline></wildcardwincmdline>
+        <wildcardgroovyscript></wildcardgroovyscript>
+        <wildcardschedule>1440</wildcardschedule>
+        <wildcarddisable>false</wildcarddisable>
+        <wildcarddeleteinactive>false</wildcarddeleteinactive>
+        <agdmethod>none</agdmethod>
+        <agdparams></agdparams>
+        <group></group>
+        <tags></tags>
+        <technology>User mttr.period to define the rolling time period used in mttr calculation in days.</technology>
+        <adlist><![CDATA[{"agdmethod":"none","agdparams":"","id":0,"filters":[],"params":{}}]]></adlist>
+        <schemaVersion>2</schemaVersion>
+    <integrationMetadata>
+        <integrationVersion>1.0.0</integrationVersion>
+        <integrationAuthorCompanyUuid>1c0ca6ae-b3a2-4a08-9809-5935c90e4a1d</integrationAuthorCompanyUuid>
+        <integrationLineageId>lIeMcvZKSv21YybO21oSGA</integrationLineageId>
+        <integrationChecksum>976270e7c356ca04f05716827d7c1fa1</integrationChecksum>
+        <integrationAuthorNamespace>lmstevenvillardi</integrationAuthorNamespace>
+        <integrationId>03e29298-5dab-42db-aaea-645b9e46538b</integrationId>
+        <integrationLocator>A7NJWT</integrationLocator>
+        <integrationName></integrationName>
+        <integrationStatus>Security Review</integrationStatus>
+        <integrationPublishedAtMS>1685575491650</integrationPublishedAtMS>
+        <integrationIsPrivate>true</integrationIsPrivate>
+    </integrationMetadata>
+        <dataSourceType>1</dataSourceType>
+        <attributes>
+        <attribute>
+            <name>scripttype</name>
+            <value>embed</value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>scriptgroovy</name>
+            <value>/*******************************************************************************
+ * © 2007-2023 - LogicMonitor, Inc. All rights reserved.
+ ******************************************************************************/
+
+import groovy.json.JsonSlurper
+import com.santaba.agent.util.Settings
+import com.santaba.agent.live.LiveHostSet
+import org.apache.commons.codec.binary.Hex
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
+import java.security.MessageDigest
+import groovy.json.JsonOutput
+
+String apiId   = hostProps.get(&#34;lmaccess.id&#34;)  ?: hostProps.get(&#34;logicmonitor.access.id&#34;)
+String apiKey  = hostProps.get(&#34;lmaccess.key&#34;) ?: hostProps.get(&#34;logicmonitor.access.key&#34;)
+def mttrPeriod = hostProps.get(&#34;mttr.period&#34;) ?: &#34;1&#34; //Default to 1 day
+def portalName = hostProps.get(&#34;lmaccount&#34;)    ?: Settings.getSetting(Settings.AGENT_COMPANY)
+Map proxyInfo  = getProxyInfo()
+
+/*Calculate start and end date for alert query*/
+int timePeriod = 24 * mttrPeriod.toInteger() //hours for rolling average
+Date now = new Date()
+long endEpoch = now.getTime() / 1000
+long startEpoch = endEpoch - (timePeriod*3600)
+
+def filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;:${startEpoch}&#34;
+def fields = &#34;severity,monitorObjectId,internalId,id,startEpoch,endEpoch&#34;
+def sort = &#34;+endEpoch&#34;
+def alerts
+def alertSize
+def maxQuery = 0
+
+try{
+    /*Grab alerts*/
+    alerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000,&#39;sort&#39;:sort])
+    alertSize = alerts.size()
+
+    /*We reached 10000 view limit, perform another search starting with the oldest returned alert*/
+    while(alertSize == 10000 &#38;&#38; maxQuery &#60; 5){
+        def lastEpoch = alerts.endEpoch.max()
+        filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34;
+        def nextAlerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000,&#39;sort&#39;:sort])
+        alertSize = nextAlerts.size()
+        alerts.addAll(nextAlerts)
+		maxQuery++
+    }
+}
+catch (Exception ex) {
+    println ex
+    return -1
+}
+
+if(alerts){
+	//alerts.removeAll { it.endEpoch &#60;= startEpoch}
+
+	alerts.each { alert -&#62;
+		double duration = alert.endEpoch - alert.startEpoch
+        alert.put(&#34;Duration&#34;,duration)
+
+        switch(alert.severity.toInteger()){
+            case 2:
+                //warning
+                alert.put(&#34;warnDuration&#34;,duration)
+                break;
+            case 3:
+                //error
+                alert.put(&#34;errorDuration&#34;,duration)
+                break;
+            case 4:
+                //critical
+                alert.put(&#34;criticalDuration&#34;,duration)
+                break;
+        }
+	}
+
+    def warnAlerts = alerts.findAll { it.severity.toInteger() == 2}
+    def errorAlerts = alerts.findAll { it.severity.toInteger() == 3}
+    def criticalAlerts = alerts.findAll { it.severity.toInteger() == 4}
+
+    calcMTTR(alerts,&#34;&#34;)
+    calcMTTR(warnAlerts,&#34;warn&#34;)
+    calcMTTR(errorAlerts,&#34;error&#34;)
+    calcMTTR(criticalAlerts,&#34;critical&#34;)
+
+}
+else{
+    println &#34;alertSize=0&#34;
+    println &#34;averageMTTR=0&#34;
+    println &#34;warnAverageMTTR=0&#34;
+    println &#34;errorAverageMTTR=0&#34;
+    println &#34;criticalAverageMTTR=0&#34;
+    println &#34;warnAlertSize=0&#34;
+    println &#34;errorAlertSize=0&#34;
+    println &#34;criticalAlertSize=0&#34;
+    println &#34;averageMTTR95th=0&#34;
+    println &#34;warnAverageMTTR95th=0&#34;
+    println &#34;errorAverageMTTR95th=0&#34;
+    println &#34;criticalAverageMTTR95th=0&#34;
+}
+println &#34;mttrPeriod=${mttrPeriod}&#34;
+
+return 0
+
+def calcMTTR(collection, dpPrefix) {
+    if(collection){
+        println &#34;${dpPrefix}AlertSize=${collection.size()}&#34;
+
+        double mttr = ((collection.&#34;${dpPrefix}Duration&#34;.sum() / collection.size()) / 60).round(2)
+        println &#34;${dpPrefix}AverageMTTR=${mttr}&#34;
+
+        double mttr95th =  getPercentile(collection.&#34;${dpPrefix}Duration&#34;, 0.95)
+        println &#34;${dpPrefix}AverageMTTR95th=${mttr95th}&#34;
+    }
+    else{
+        println &#34;${dpPrefix}AlertSize=0&#34;
+        println &#34;${dpPrefix}AverageMTTR=0&#34;
+        println &#34;${dpPrefix}AverageMTTR95th=0&#34;
+    }
+}
+
+Double getPercentile(collection, percentile) {
+    def sortedCollection = collection.sort()
+    int percentileIndex = Math.round(sortedCollection.size() * percentile)
+    sortedCollection.subList(percentileIndex,sortedCollection.size()).clear()
+
+    double result =  ((sortedCollection.sum() / Math.ceil(sortedCollection.size())) / 60).round(2)
+
+    return result
+}
+
+/* Generate auth for API calls. */
+static String generateAuth(id, key, path) {
+    Long epoch_time = System.currentTimeMillis()
+    Mac hmac = Mac.getInstance(&#34;HmacSHA256&#34;)
+    hmac.init(new SecretKeySpec(key.getBytes(), &#34;HmacSHA256&#34;))
+    def signature = Hex.encodeHexString(hmac.doFinal(&#34;GET${epoch_time}${path}&#34;.getBytes())).bytes.encodeBase64()
+
+    return &#34;LMv1 ${id}:${signature}:${epoch_time}&#34;
+}
+
+/* Paginated GET method. Returns a list of objects. */
+List apiGetManyV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+
+    def pageSize = args.get(&#39;size&#39;, 1000) // Default the page size to 1000 if not specified.
+    List items = []
+
+    args[&#39;size&#39;] = pageSize
+
+    def pageCount = 0
+    while (true) {
+        pageCount += 1
+
+        // Updated the args
+        args[&#39;size&#39;] = pageSize
+        args[&#39;offset&#39;] = items.size()
+
+        def response = apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
+        if (response.get(&#34;errmsg&#34;, &#34;OK&#34;) != &#34;OK&#34;) {
+            throw new Exception(&#34;Santaba returned errormsg: ${response?.errmsg}&#34;)
+        }
+        items.addAll(response.items)
+
+        // If we recieved less than we asked for it means we are done
+        if (response.items.size() &#60; pageSize) break
+    }
+    return items
+}
+
+/* Simple GET, returns a parsed json payload. No processing. */
+def apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+    def request = rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
+    if (request.getResponseCode() == 200) {
+        def payload = new JsonSlurper().parseText(request.content.text)
+        return payload
+    }
+    else {
+        throw new Exception(&#34;Server return HTTP code ${request.getResponseCode()}&#34;)
+    }
+}
+
+
+/* Raw GET method. */
+def rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+    def auth = generateAuth(apiId, apiKey, endPoint)
+    def headers = [&#34;Authorization&#34;: auth, &#34;Content-Type&#34;: &#34;application/json&#34;, &#34;X-Version&#34;:&#34;3&#34;]
+    def url = &#34;https://${portalName}.logicmonitor.com/santaba/rest${endPoint}&#34;
+    if (args) {
+        def encodedArgs = []
+        args.each{ k,v -&#62; 
+            if(k == &#34;filter&#34; || k == &#34;fields&#34; || k == &#34;sort&#34;){
+                encodedArgs &#60;&#60; &#34;${k}=${v.toString()}&#34;
+            }
+            else{
+                encodedArgs &#60;&#60; &#34;${k}=${java.net.URLEncoder.encode(v.toString(), &#34;UTF-8&#34;)}&#34;
+            }
+        }
+        url += &#34;?${encodedArgs.join(&#39;&#38;&#39;)}&#34;
+    }
+
+    def request
+    if (proxyInfo.enabled) {
+        request = url.toURL().openConnection(proxyInfo.proxy)
+    }
+    else {
+        request = url.toURL().openConnection()
+    }
+    request.setRequestMethod(&#34;GET&#34;)
+    request.setDoOutput(true)
+    headers.each{ k,v -&#62;
+        request.addRequestProperty(k, v)
+    }
+
+    return request
+}
+
+/**
+* Get collector proxy settings
+* @return Map with proxy settings, empty map if proxy not set.
+*/
+Map getProxyInfo() {
+    // Each property must be evaluated for null to determine whether to use collected value or fallback value
+    // Elvis operator does not play nice with booleans
+    // default to true in absence of property to use collectorProxy as determinant
+    Boolean deviceProxy = hostProps.get(&#34;proxy.enable&#34;)?.toBoolean()
+    deviceProxy = (deviceProxy != null) ? deviceProxy : true  
+    // if settings are not present, value should be false
+    Boolean collectorProxy = Settings.getSetting(&#34;proxy.enable&#34;)?.toBoolean()
+    collectorProxy = (collectorProxy != null) ? collectorProxy : false  
+
+    Map proxyInfo = [:]
+    
+    if (deviceProxy &#38;&#38; collectorProxy) {
+        proxyInfo = [
+            enabled : true,
+            host : hostProps.get(&#34;proxy.host&#34;) ?: Settings.getSetting(&#34;proxy.host&#34;),
+            port : hostProps.get(&#34;proxy.port&#34;) ?: Settings.getSetting(&#34;proxy.port&#34;) ?: 3128,
+            user : Settings.getSetting(&#34;proxy.user&#34;),
+            pass : Settings.getSetting(&#34;proxy.pass&#34;)
+        ]
+    
+        proxyInfo[&#34;proxy&#34;] = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyInfo.host, proxyInfo.port.toInteger()))
+    }
+
+    return proxyInfo
+}</value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>windowsscript</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>linuxscript</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>windowscmdline</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>linuxcmdline</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>properties</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>manualConnections</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        </attributes>
+        <datapoints>
+        <datapoint>
+            <name>alertSize</name>
+            <originId>K8ncC7VWQd6ZByQDtNs1lw</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>alertSize</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>number of alerts used in MTTR average calculation</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>averageMTTR</name>
+            <originId>0R0GcZNlRiqePgxgBRlEFg</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>averageMTTR</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>average alert duration in minutes based on rolling 24 hour period.</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>mttrPeriod</name>
+            <originId>k4hkbMocT_u8R6OX3oQI9A</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>mttrPeriod</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Period of time in days used to calculate mttr. Default value is 1 can be overridden by setting the property mttr.period where needed.</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>averageMTTR95th</name>
+            <originId>3sO0tEdNRdWO4jFtMRe82Q</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>averageMTTR95th</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>95th percentile average MTTR</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>criticalAlertSize</name>
+            <originId>Yp8q3l0gTRSyq1b_vHn6BA</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>criticalAlertSize</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>criticalAverageMTTR</name>
+            <originId>5MdoI9aVQ3qm8Vl6G4wdog</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>criticalAverageMTTR</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>criticalAverageMTTR95th</name>
+            <originId>DHr04FLGQfCXzeJOjyFFyg</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>criticalAverageMTTR95th</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>errorAlertSize</name>
+            <originId>C20_5FM_SamjJ0AA8TXSnQ</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>errorAlertSize</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>errorAverageMTTR</name>
+            <originId>Xhn5Vl6tQx20S1CuZM6p1Q</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>errorAverageMTTR</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>errorAverageMTTR95th</name>
+            <originId>875WcqpMRG64TpYyfqP3Qg</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>errorAverageMTTR95th</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>warnAlertSize</name>
+            <originId>zMxUNU4iToe3iIjhtR2gWw</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>warnAlertSize</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>warnAverageMTTR</name>
+            <originId>yuhqDs4ARTevdxZlRx4kPQ</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>warnAverageMTTR</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>warnAverageMTTR95th</name>
+            <originId>HkmyIeSxTTSHF4nW9Onjqg</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>warnAverageMTTR95th</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>executionTime</name>
+            <originId>9mMQkhFlSEyLeXk9WoE9cw</originId>
+            <dataType>4</dataType>
+            <type>2</type>
+            <postprocessormethod>none</postprocessormethod>
+            <postprocessorparam></postprocessorparam>
+            <usevalue>responseTime</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        </datapoints>
+        <graphs>
+        <graph>
+            <name>Portal MTTR Average</name>
+            <title>Portal MTTR Average</title>
+            <originId></originId>            <verticallabel>minutes</verticallabel>
+            <rigid>false</rigid>
+            <maxvalue>NaN</maxvalue>
+            <minvalue>-1.0</minvalue>
+            <displayprio>1</displayprio>
+            <timescale>1day</timescale>
+            <base1024>false</base1024>
+            <graphdatapoints>
+        <graphdatapoint>
+            <name>averageMTTR</name>
+            <datapointname>averageMTTR</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+            </graphdatapoints>
+            <graphvirtualdatapoints>
+            </graphvirtualdatapoints>
+            <graphdatas>
+            <graphdata>
+                <type>2</type>
+                <legend>averageMTTR</legend>
+                <color>silver</color>
+                <datapointname>averageMTTR</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            </graphdatas>
+        </graph>
+        <graph>
+            <name>Resolved Alert Count: Rolling ##MTTR.PERIOD## day(s)</name>
+            <title>Resolved Alert Count: Rolling ##MTTR.PERIOD## day(s)</title>
+            <originId></originId>            <verticallabel># of alerts</verticallabel>
+            <rigid>false</rigid>
+            <maxvalue>NaN</maxvalue>
+            <minvalue>-1.0</minvalue>
+            <displayprio>1</displayprio>
+            <timescale>1day</timescale>
+            <base1024>false</base1024>
+            <graphdatapoints>
+        <graphdatapoint>
+            <name>alertSize</name>
+            <datapointname>alertSize</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+            </graphdatapoints>
+            <graphvirtualdatapoints>
+            </graphvirtualdatapoints>
+            <graphdatas>
+            <graphdata>
+                <type>1</type>
+                <legend>alertSize</legend>
+                <color>green</color>
+                <datapointname>alertSize</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            </graphdatas>
+        </graph>
+        </graphs>
+        <overviewgraphs>
+        </overviewgraphs>
+        <scripts>
+        </scripts>
+    </entry>
+</feed>
