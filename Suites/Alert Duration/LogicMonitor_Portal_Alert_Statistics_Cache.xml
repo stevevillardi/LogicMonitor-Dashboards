@@ -1,0 +1,787 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<feed  version="1.0" hasPendingRequests="false" >
+  <company></company>
+  <status>200</status>
+  <errmsg>OK</errmsg>
+  <interval>0</interval>
+    <entry type="predatasource">
+        <version>1697835479</version>
+        <name>LogicMonitor_Portal_Alert_Statistics_Cache</name>
+        <displayedas>LogicMonitor Portal Alert Statistics (Cache)</displayedas>
+        <description>Populates collector script cache with cleared alert metrics and resources for use with alert statistics modules.</description>
+        <collector>script</collector>
+        <hasMultiInstances>false</hasMultiInstances>
+        <useWildValueAsUniqueIdentifier>false</useWildValueAsUniqueIdentifier>
+        <schedule>300</schedule>
+        <appliesTo>hasCategory(&#34;LogicMonitorPortal&#34;)</appliesTo>
+        <wildcardauto>false</wildcardauto>
+        <wildcardpersist>false</wildcardpersist>
+        <wildcardlinuxscript></wildcardlinuxscript>
+        <wildcardlinuxcmdline></wildcardlinuxcmdline>
+        <wildcardwinscript></wildcardwinscript>
+        <wildcardwincmdline></wildcardwincmdline>
+        <wildcardgroovyscript></wildcardgroovyscript>
+        <wildcardschedule>1440</wildcardschedule>
+        <wildcarddisable>false</wildcarddisable>
+        <wildcarddeleteinactive>false</wildcarddeleteinactive>
+        <agdmethod>none</agdmethod>
+        <agdparams></agdparams>
+        <group></group>
+        <tags></tags>
+        <technology></technology>
+        <adlist><![CDATA[{"agdmethod":"none","agdparams":"","id":0,"filters":[],"params":{}}]]></adlist>
+        <schemaVersion>2</schemaVersion>
+        <dataSourceType>1</dataSourceType>
+        <attributes>
+        <attribute>
+            <name>scripttype</name>
+            <value>embed</value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>scriptgroovy</name>
+            <value>/*******************************************************************************
+ * © 2007-2023 - LogicMonitor, Inc. All rights reserved.
+ ******************************************************************************/
+
+import groovy.json.JsonSlurper
+import com.santaba.agent.util.Settings
+import com.santaba.agent.live.LiveHostSet
+import org.apache.commons.codec.binary.Hex
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
+import java.security.MessageDigest
+import groovy.json.*
+
+String apiId   = hostProps.get(&#34;lmaccess.id&#34;)  ?: hostProps.get(&#34;logicmonitor.access.id&#34;)
+String apiKey  = hostProps.get(&#34;lmaccess.key&#34;) ?: hostProps.get(&#34;logicmonitor.access.key&#34;)
+def lookbackPeriod = hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;7&#34; //Default to 7 day(s)
+
+def excludeUnACKedAlerts = hostProps.get(&#34;alert.duration.excludeUnACKedAlerts&#34;) ?: &#34;false&#34; //Default to false
+def excludeSDTedAlerts = hostProps.get(&#34;alert.duration.excludeSDTedAlerts&#34;) ?: &#34;false&#34; //Default to false
+
+def portalName = hostProps.get(&#34;lmaccount&#34;)    ?: Settings.getSetting(Settings.AGENT_COMPANY)
+Map proxyInfo  = getProxyInfo()
+
+/*Calculate start and end date for alert query*/
+int timePeriod = 24 * lookbackPeriod.toInteger() //hours for rolling average
+Date now = new Date()
+long endEpoch = now.getTime() / 1000
+long startEpoch = endEpoch - (timePeriod*3600)
+
+def SDTFilter = &#34;*&#34;
+def ACKFilter = &#34;*&#34;
+
+if(excludeUnACKedAlerts == &#34;false&#34;){ACKFilter = &#34;*&#34;}
+if(excludeSDTedAlerts == &#34;true&#34;){SDTFilter = &#34;false&#34;}
+
+def propfilter = &#34;,acked:\&#34;${ACKFilter}\&#34;,sdted:\&#34;${SDTFilter}\&#34;&#34;
+
+def filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;:${startEpoch}&#34; + propfilter
+def fields = &#34;severity,monitorObjectId,monitorObjectName,id,startEpoch,endEpoch,rule,acked,sdted,chain&#34;
+
+def alerts
+def alertSize
+def maxQuery = 0
+def scriptCache
+def cacheTimeout = 3600 // 1 hour
+
+def cacheHit = 0
+def previousCacheSize = 0
+def currentCacheSize = 0
+def addedToCache = 0
+def removedFromCache = 0
+def resourcesInCache = 0
+def resourcesCacheHit = 0
+
+def devices
+
+try{
+
+    scriptCache = this.class.classLoader.loadClass(&#34;com.santaba.agent.util.script.ScriptCache&#34;).getCache();
+    
+    String resourceCache = scriptCache.get(&#34;DeviceAlertStats-ResourceCache&#34;);
+    if(resourceCache == null){
+        /*Grab resource*/
+        devices = apiGetManyV2(portalName, apiId, apiKey, &#34;/device/devices&#34;, proxyInfo, [&#39;fields&#39;:&#34;id,name,displayName,deviceType&#34;,&#39;size&#39;:1000,&#39;sort&#39;:&#34;displayName&#34;])
+        if(devices){
+            devicesJson = new JsonBuilder( devices ).toPrettyString()
+            scriptCache.set(&#34;DeviceAlertStats-ResourceCache&#34;,devicesJson,cacheTimeout * 1000);
+            resourcesInCache = devices.size()
+        }
+    }
+    else{
+        devices = new JsonSlurper().parseText(resourceCache)
+        resourcesInCache = devices.size()
+        resourcesCacheHit = 1
+    }
+    
+    //scriptCache.remove(&#34;DeviceAlertStats-AlertsCache&#34;)
+    String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
+    if(alertsCache == null){
+        /*Grab alerts*/
+        alerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
+        alertSize = alerts.size()
+
+        /*We reached 10000 view limit, perform another search starting with the oldest returned alert*/
+        while(alertSize == 10000 &#38;&#38; maxQuery &#60; 5){
+            def lastEpoch = alerts.endEpoch.max()
+            filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
+            def nextAlerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
+            alertSize = nextAlerts.size()
+            alerts.addAll(nextAlerts)
+            maxQuery++
+        }
+        /*If we have alerts store them in script cache*/
+        if(alerts){
+            currentCacheSize = alerts.size()
+            addedToCache = alerts.size()
+            alertsJson = new JsonBuilder( alerts ).toPrettyString()
+            scriptCache.set(&#34;DeviceAlertStats-AlertsCache&#34;,alertsJson,cacheTimeout * 1000);
+        }
+    }
+    else{
+        cacheHit = 1
+        cachedAlerts = new JsonSlurper().parseText(alertsCache)
+        previousCacheSize = cachedAlerts.size()
+        def lastEpoch = cachedAlerts.endEpoch.max()
+
+        /*Purge old alerts that fall outside scope of duration period*/
+        cachedAlerts.removeAll { it.endEpoch &#60;= startEpoch }
+        removedFromCache = cachedAlerts.size()
+
+        /*Grab latest closed alerts*/
+        filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
+        alerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
+        alertSize = alerts.size()
+
+        /*We reached 10000 view limit, perform another search starting with the oldest returned alert*/
+        while(alertSize == 10000 &#38;&#38; maxQuery &#60; 5){
+            lastEpoch = alerts.endEpoch.max()
+            filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
+            def nextAlerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
+            alertSize = nextAlerts.size()
+            alerts.addAll(nextAlerts)
+            maxQuery++
+        }
+        /*If we have alerts store them in script cache*/
+        addedToCache = alerts.size()
+        alerts.addAll(cachedAlerts)
+        alertsJson = new JsonBuilder( alerts ).toPrettyString()
+        scriptCache.set(&#34;DeviceAlertStats-AlertsCache&#34;,alertsJson,cacheTimeout * 1000);
+        currentCacheSize = alerts.size()
+        removedFromCache = previousCacheSize - removedFromCache
+    }
+
+    println &#34;alertCacheHit=${cacheHit}&#34;
+    println &#34;currentCacheSize=${currentCacheSize}&#34;
+    println &#34;previousCacheSize=${previousCacheSize}&#34;
+    println &#34;removedFromCache=${removedFromCache}&#34;
+    println &#34;addedToCache=${addedToCache}&#34;
+    println &#34;lookbackPeriod=${lookbackPeriod}&#34;
+    println &#34;resourcesInCache=${resourcesInCache}&#34;
+    println &#34;resourcesCacheHit=${resourcesCacheHit}&#34;
+}
+catch (Exception ex) {
+    println ex
+    return -1
+}
+
+
+/* Generate auth for API calls. */
+static String generateAuth(id, key, path) {
+    Long epoch_time = System.currentTimeMillis()
+    Mac hmac = Mac.getInstance(&#34;HmacSHA256&#34;)
+    hmac.init(new SecretKeySpec(key.getBytes(), &#34;HmacSHA256&#34;))
+    def signature = Hex.encodeHexString(hmac.doFinal(&#34;GET${epoch_time}${path}&#34;.getBytes())).bytes.encodeBase64()
+
+    return &#34;LMv1 ${id}:${signature}:${epoch_time}&#34;
+}
+
+/* Paginated GET method. Returns a list of objects. */
+List apiGetManyV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+
+    def pageSize = args.get(&#39;size&#39;, 1000) // Default the page size to 1000 if not specified.
+    List items = []
+
+    args[&#39;size&#39;] = pageSize
+
+    def pageCount = 0
+    while (true) {
+        pageCount += 1
+
+        // Updated the args
+        args[&#39;size&#39;] = pageSize
+        args[&#39;offset&#39;] = items.size()
+
+        def response = apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
+        if (response.get(&#34;errmsg&#34;, &#34;OK&#34;) != &#34;OK&#34;) {
+            throw new Exception(&#34;Santaba returned errormsg: ${response?.errmsg}&#34;)
+        }
+        items.addAll(response.items)
+
+        // If we recieved less than we asked for it means we are done
+        if (response.items.size() &#60; pageSize) break
+    }
+    return items
+}
+
+/* Simple GET, returns a parsed json payload. No processing. */
+def apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+    def request = rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
+    if (request.getResponseCode() == 200) {
+        def payload = new JsonSlurper().parseText(request.content.text)
+        return payload
+    }
+    else {
+        throw new Exception(&#34;Server return HTTP code ${request.getResponseCode()}&#34;)
+    }
+}
+
+
+/* Raw GET method. */
+def rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+    def auth = generateAuth(apiId, apiKey, endPoint)
+    def headers = [&#34;Authorization&#34;: auth, &#34;Content-Type&#34;: &#34;application/json&#34;, &#34;X-Version&#34;:&#34;3&#34;]
+    def url = &#34;https://${portalName}.logicmonitor.com/santaba/rest${endPoint}&#34;
+    if (args) {
+        def encodedArgs = []
+        args.each{ k,v -&#62; 
+            if(k == &#34;filter&#34; || k == &#34;fields&#34; || k == &#34;sort&#34;){
+                encodedArgs &#60;&#60; &#34;${k}=${v.toString()}&#34;
+            }
+            else{
+                encodedArgs &#60;&#60; &#34;${k}=${java.net.URLEncoder.encode(v.toString(), &#34;UTF-8&#34;)}&#34;
+            }
+        }
+        url += &#34;?${encodedArgs.join(&#39;&#38;&#39;)}&#34;
+    }
+
+    def request
+    if (proxyInfo.enabled) {
+        request = url.toURL().openConnection(proxyInfo.proxy)
+    }
+    else {
+        request = url.toURL().openConnection()
+    }
+    request.setRequestMethod(&#34;GET&#34;)
+    request.setDoOutput(true)
+    headers.each{ k,v -&#62;
+        request.addRequestProperty(k, v)
+    }
+
+    return request
+}
+
+/**
+* Get collector proxy settings
+* @return Map with proxy settings, empty map if proxy not set.
+*/
+Map getProxyInfo() {
+    // Each property must be evaluated for null to determine whether to use collected value or fallback value
+    // Elvis operator does not play nice with booleans
+    // default to true in absence of property to use collectorProxy as determinant
+    Boolean deviceProxy = hostProps.get(&#34;proxy.enable&#34;)?.toBoolean()
+    deviceProxy = (deviceProxy != null) ? deviceProxy : true  
+    // if settings are not present, value should be false
+    Boolean collectorProxy = Settings.getSetting(&#34;proxy.enable&#34;)?.toBoolean()
+    collectorProxy = (collectorProxy != null) ? collectorProxy : false  
+
+    Map proxyInfo = [:]
+    
+    if (deviceProxy &#38;&#38; collectorProxy) {
+        proxyInfo = [
+            enabled : true,
+            host : hostProps.get(&#34;proxy.host&#34;) ?: Settings.getSetting(&#34;proxy.host&#34;),
+            port : hostProps.get(&#34;proxy.port&#34;) ?: Settings.getSetting(&#34;proxy.port&#34;) ?: 3128,
+            user : Settings.getSetting(&#34;proxy.user&#34;),
+            pass : Settings.getSetting(&#34;proxy.pass&#34;)
+        ]
+    
+        proxyInfo[&#34;proxy&#34;] = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyInfo.host, proxyInfo.port.toInteger()))
+    }
+
+    return proxyInfo
+}</value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>windowsscript</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>linuxscript</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>windowscmdline</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>linuxcmdline</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>properties</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>manualConnections</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        </attributes>
+        <datapoints>
+        <datapoint>
+            <name>alertsAddedToCache</name>
+            <originId>9KisVkFPQmKDH815ZSr5BA</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>addedToCache</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>How many additional alerts were added to script cache during current poll</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>alertCacheHit</name>
+            <originId>wOco4XxNSEWe790TJAYZDw</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>alertCacheHit</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Wether or not a script alert cache was found during polling.
+
+0 = no script cache found
+1 = script cache found</description>
+            <maxvalue>1</maxvalue>
+            <minvalue>0</minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>alertsCurrentCacheSize</name>
+            <originId>PsoFuMshSzWKK-suTBp-Jg</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>currentCacheSize</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>how many alerts are currently stored in script cache</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>alertsPreviousCacheSize</name>
+            <originId>aWHTXTRxRJaWolg75tEu2A</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>previousCacheSize</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>How many alerts we stored in script cache when polling started.</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>alertsLookbackPeriod</name>
+            <originId>P-k2pSmXRpeDPJVzj6Cluw</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>lookbackPeriod</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Number of days to look back for resolved alerts. This value is set using custom property alert.lookback.period, if not present defaults to 1.</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>executionTime</name>
+            <originId>x9ie8_HtRFiDZUUQpOEsBw</originId>
+            <dataType>4</dataType>
+            <type>2</type>
+            <postprocessormethod>none</postprocessormethod>
+            <postprocessorparam></postprocessorparam>
+            <usevalue>responseTime</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Time taken to collect alert details.</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>alertsRemovedFromCache</name>
+            <originId>sVT8KmBkTUuYfE4y1ZvtUw</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>removedFromCache</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Alerts purged from cache that fall outside of defined duration period.</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>resourcesCacheHit</name>
+            <originId>Ap8R3LHuTzilUa2x9fIImg</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>resourcesCacheHit</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Wether or not a script resource cache was found during polling.
+
+0 = no script cache found
+1 = script cache found</description>
+            <maxvalue>1</maxvalue>
+            <minvalue>0</minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>resourcesInCache</name>
+            <originId>9EsCmGw2Sta8yDcjmZOJOA</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>resourcesInCache</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Number of resources in script cache</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        </datapoints>
+        <graphs>
+        <graph>
+            <name>Alert Cache Details</name>
+            <title>Alert Cache Details</title>
+            <originId></originId>            <verticallabel># of alerts</verticallabel>
+            <rigid>false</rigid>
+            <maxvalue>NaN</maxvalue>
+            <minvalue>-4.0</minvalue>
+            <displayprio>1</displayprio>
+            <timescale>1day</timescale>
+            <base1024>false</base1024>
+            <graphdatapoints>
+        <graphdatapoint>
+            <name>addedToCache</name>
+            <datapointname>alertsAddedToCache</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+        <graphdatapoint>
+            <name>currentCacheSize</name>
+            <datapointname>alertsCurrentCacheSize</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+        <graphdatapoint>
+            <name>previousCacheSize</name>
+            <datapointname>alertsPreviousCacheSize</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+        <graphdatapoint>
+            <name>removedFromCache</name>
+            <datapointname>alertsRemovedFromCache</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+            </graphdatapoints>
+            <graphvirtualdatapoints>
+            </graphvirtualdatapoints>
+            <graphdatas>
+            <graphdata>
+                <type>1</type>
+                <legend>addedToCache</legend>
+                <color>olive</color>
+                <datapointname>addedToCache</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            <graphdata>
+                <type>1</type>
+                <legend>removedFromCache</legend>
+                <color>red</color>
+                <datapointname>removedFromCache</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            <graphdata>
+                <type>1</type>
+                <legend>currentCacheSize</legend>
+                <color>silver</color>
+                <datapointname>currentCacheSize</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            <graphdata>
+                <type>1</type>
+                <legend>previousCacheSize</legend>
+                <color>orange2</color>
+                <datapointname>previousCacheSize</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            </graphdatas>
+        </graph>
+        <graph>
+            <name>Cache Status</name>
+            <title>Cache Status</title>
+            <originId></originId>            <verticallabel>0 = No cache hit, 1 = Cache hit</verticallabel>
+            <rigid>false</rigid>
+            <maxvalue>2.0</maxvalue>
+            <minvalue>-1.0</minvalue>
+            <displayprio>1</displayprio>
+            <timescale>1day</timescale>
+            <base1024>false</base1024>
+            <graphdatapoints>
+        <graphdatapoint>
+            <name>alertsCacheHit</name>
+            <datapointname>alertCacheHit</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+        <graphdatapoint>
+            <name>resourcesCacheHit</name>
+            <datapointname>resourcesCacheHit</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+            </graphdatapoints>
+            <graphvirtualdatapoints>
+            </graphvirtualdatapoints>
+            <graphdatas>
+            <graphdata>
+                <type>1</type>
+                <legend>resourcesCacheHit</legend>
+                <color>blue</color>
+                <datapointname>resourcesCacheHit</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            <graphdata>
+                <type>1</type>
+                <legend>alertsCacheHit</legend>
+                <color>aqua</color>
+                <datapointname>alertsCacheHit</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            </graphdatas>
+        </graph>
+        <graph>
+            <name>Resource Cache Details</name>
+            <title>Resource Cache Details</title>
+            <originId></originId>            <verticallabel># of resources</verticallabel>
+            <rigid>false</rigid>
+            <maxvalue>NaN</maxvalue>
+            <minvalue>-1.0</minvalue>
+            <displayprio>1</displayprio>
+            <timescale>1day</timescale>
+            <base1024>false</base1024>
+            <graphdatapoints>
+        <graphdatapoint>
+            <name>resourcesInCache</name>
+            <datapointname>resourcesInCache</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+            </graphdatapoints>
+            <graphvirtualdatapoints>
+            </graphvirtualdatapoints>
+            <graphdatas>
+            <graphdata>
+                <type>1</type>
+                <legend>resourcesInCache</legend>
+                <color>orange2</color>
+                <datapointname>resourcesInCache</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            </graphdatas>
+        </graph>
+        <graph>
+            <name>Script Execution</name>
+            <title>Script Execution</title>
+            <originId></originId>            <verticallabel>ms</verticallabel>
+            <rigid>false</rigid>
+            <maxvalue>NaN</maxvalue>
+            <minvalue>-1.0</minvalue>
+            <displayprio>1</displayprio>
+            <timescale>1day</timescale>
+            <base1024>false</base1024>
+            <graphdatapoints>
+        <graphdatapoint>
+            <name>executionTime</name>
+            <datapointname>executionTime</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+            </graphdatapoints>
+            <graphvirtualdatapoints>
+            </graphvirtualdatapoints>
+            <graphdatas>
+            <graphdata>
+                <type>1</type>
+                <legend>executionTime</legend>
+                <color>silver</color>
+                <datapointname>executionTime</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            </graphdatas>
+        </graph>
+        </graphs>
+        <overviewgraphs>
+        </overviewgraphs>
+        <scripts>
+        </scripts>
+    </entry>
+</feed>

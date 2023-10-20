@@ -1,0 +1,892 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<feed  version="1.0" hasPendingRequests="false" >
+  <company></company>
+  <status>200</status>
+  <errmsg>OK</errmsg>
+  <interval>0</interval>
+    <entry type="predatasource">
+        <version>1697830829</version>
+        <name>LogicMonitor_Device_Alert_Statistics</name>
+        <displayedas>LogicMonitor Device Alert Statistics</displayedas>
+        <description>Tracks alert duration average over a rolling period of time.</description>
+        <collector>batchscript</collector>
+        <hasMultiInstances>true</hasMultiInstances>
+        <useWildValueAsUniqueIdentifier>true</useWildValueAsUniqueIdentifier>
+        <schedule>900</schedule>
+        <appliesTo>hasCategory(&#34;LogicMonitorPortal&#34;)</appliesTo>
+        <wildcardauto>true</wildcardauto>
+        <wildcardpersist>false</wildcardpersist>
+        <wildcardlinuxscript>ad_script</wildcardlinuxscript>
+        <wildcardlinuxcmdline>type=&#34;embeded&#34; </wildcardlinuxcmdline>
+        <wildcardwinscript>ad_script</wildcardwinscript>
+        <wildcardwincmdline>type=&#34;embeded&#34; </wildcardwincmdline>
+        <wildcardgroovyscript>/*******************************************************************************
+ * © 2007-2023 - LogicMonitor, Inc. All rights reserved.
+ ******************************************************************************/
+import groovy.json.*
+
+def devices
+
+Map deviceType = [
+    0: &#34;Standard Resources&#34;,
+    2: &#34;AWS Resources&#34;,
+    4: &#34;Azure Resources&#34;,
+    6: &#34;Services&#34;,
+    7: &#34;GCP Resources&#34;,
+    8: &#34;K8s Resources&#34;,
+    10: &#34;SaaS Resources&#34;,
+    11: &#34;Synthetics&#34;
+]
+
+try {
+    scriptCache = this.class.classLoader.loadClass(&#34;com.santaba.agent.util.script.ScriptCache&#34;).getCache();
+    //scriptCache.remove(&#34;DeviceAlertStats-ResourceCache&#34;)
+    String resourceCache = scriptCache.get(&#34;DeviceAlertStats-ResourceCache&#34;);
+    if(resourceCache == null){
+        return -1
+    }
+    else{
+        devices = new JsonSlurper().parseText(resourceCache)
+    }
+} 
+catch (Exception ex) {
+	println ex
+    return -1
+}
+
+if(devices){
+    devices.each { device -&#62; 
+        
+        println &#34;${device.id}##${device.displayName}######auto.device.type=${deviceType.getOrDefault(device.deviceType,&#34;Other Resources&#34;)}&#34;
+    }
+}
+return 0
+</wildcardgroovyscript>
+        <wildcardschedule>60</wildcardschedule>
+        <wildcarddisable>false</wildcarddisable>
+        <wildcarddeleteinactive>false</wildcarddeleteinactive>
+        <agdmethod>ilp</agdmethod>
+        <agdparams>auto.device.type</agdparams>
+        <group></group>
+        <tags></tags>
+        <technology>User alert.duration.period to define the rolling time period used in alert duration calculation(in days).</technology>
+        <adlist><![CDATA[{"agdmethod":"ilp","method":"ad_script","agdparams":"auto.device.type","id":0,"filters":[],"params":{"type":"embeded","groovyscript":"/*******************************************************************************\n * © 2007-2023 - LogicMonitor, Inc. All rights reserved.\n ******************************************************************************/\nimport groovy.json.*\n\ndef devices\n\nMap deviceType = [\n    0: \"Standard Resources\",\n    2: \"AWS Resources\",\n    4: \"Azure Resources\",\n    6: \"Services\",\n    7: \"GCP Resources\",\n    8: \"K8s Resources\",\n    10: \"SaaS Resources\",\n    11: \"Synthetics\"\n]\n\ntry {\n    scriptCache = this.class.classLoader.loadClass(\"com.santaba.agent.util.script.ScriptCache\").getCache();\n    //scriptCache.remove(\"DeviceAlertStats-ResourceCache\")\n    String resourceCache = scriptCache.get(\"DeviceAlertStats-ResourceCache\");\n    if(resourceCache == null){\n        return -1\n    }\n    else{\n        devices = new JsonSlurper().parseText(resourceCache)\n    }\n} \ncatch (Exception ex) {\n\tprintln ex\n    return -1\n}\n\nif(devices){\n    devices.each { device -> \n        \n        println \"${device.id}##${device.displayName}######auto.device.type=${deviceType.getOrDefault(device.deviceType,\"Other Resources\")}\"\n    }\n}\nreturn 0\n"}}]]></adlist>
+        <schemaVersion>2</schemaVersion>
+        <dataSourceType>1</dataSourceType>
+        <attributes>
+        <attribute>
+            <name>scripttype</name>
+            <value>embed</value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>scriptgroovy</name>
+            <value>/*******************************************************************************
+ * © 2007-2023 - LogicMonitor, Inc. All rights reserved.
+ ******************************************************************************/
+import groovy.json.*
+
+def durationPeriod = hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;7&#34; //Default to 7 day(s)
+def deviceId = hostProps.get(&#34;system.deviceId&#34;)
+def scriptCache
+
+/*Calculate start and end date for alert query*/
+int timePeriod = 24 * durationPeriod.toInteger() //hours for rolling average
+Date now = new Date()
+long endEpoch = now.getTime() / 1000
+long startEpoch = endEpoch - (timePeriod*3600)
+
+def alerts
+def devices
+
+try {
+    scriptCache = this.class.classLoader.loadClass(&#34;com.santaba.agent.util.script.ScriptCache&#34;).getCache();
+    String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
+    if(alertsCache){
+        /*Grab resources*/
+        alerts = new JsonSlurper().parseText(alertsCache)
+    }
+
+    String resourceCache = scriptCache.get(&#34;DeviceAlertStats-ResourceCache&#34;);
+    if(resourceCache){
+        /*Grab resources*/
+        devices = new JsonSlurper().parseText(resourceCache)
+    }
+}	
+catch (Exception ex) {
+	println ex
+    return -1
+}
+
+if(alerts &#38;&#38; devices){
+    def devicesWithAlerts = alerts.monitorObjectId.unique(false)
+    devices.each { device -&#62; 
+        if(devicesWithAlerts.contains(device.id)){
+            def matching_alerts = alerts.findAll { it.monitorObjectId.toString() == device.id.toString()}
+
+            matching_alerts.each { alert -&#62;
+                double duration = alert.endEpoch - alert.startEpoch
+                alert.put(&#34;Duration&#34;,duration)
+
+                switch(alert.severity.toInteger()){
+                    case 2:
+                        //warning
+                        alert.put(&#34;warnDuration&#34;,duration)
+                        break;
+                    case 3:
+                        //error
+                        alert.put(&#34;errorDuration&#34;,duration)
+                        break;
+                    case 4:
+                        //critical
+                        alert.put(&#34;criticalDuration&#34;,duration)
+                        break;
+                }
+            }
+
+            def warnAlerts = matching_alerts.findAll { it.severity.toInteger() == 2}
+            def errorAlerts = matching_alerts.findAll { it.severity.toInteger() == 3}
+            def criticalAlerts = matching_alerts.findAll { it.severity.toInteger() == 4}
+
+            calcDuration(matching_alerts,&#34;&#34;, device.id)
+            calcDuration(warnAlerts,&#34;warn&#34;, device.id)
+            calcDuration(errorAlerts,&#34;error&#34;, device.id)
+            calcDuration(criticalAlerts,&#34;critical&#34;, device.id)
+        }
+        else{
+            println &#34;${device.id}.longestAlertDuration=0&#34;
+			println &#34;${device.id}.warnLongestAlertDuration=0&#34;
+			println &#34;${device.id}.errorLongestAlertDuration=0&#34;
+			println &#34;${device.id}.criticalLongestAlertDuration=0&#34;
+            println &#34;${device.id}.alertSize=0&#34;
+            println &#34;${device.id}.averageDuration=0&#34;
+            println &#34;${device.id}.warnAverageDuration=0&#34;
+            println &#34;${device.id}.errorAverageDuration=0&#34;
+            println &#34;${device.id}.criticalAverageDuration=0&#34;
+            println &#34;${device.id}.warnAlertSize=0&#34;
+            println &#34;${device.id}.errorAlertSize=0&#34;
+            println &#34;${device.id}.criticalAlertSize=0&#34;
+            println &#34;${device.id}.averageDuration95th=0&#34;
+            println &#34;${device.id}.warnAverageDuration95th=0&#34;
+            println &#34;${device.id}.errorAverageDuration95th=0&#34;
+            println &#34;${device.id}.criticalAverageDuration95th=0&#34;
+        }
+        println &#34;${device.id}.durationPeriod=${durationPeriod}&#34;
+    }
+}
+
+return 0
+
+def calcDuration(collection, dpPrefix, deviceId) {
+    if(collection){
+        println &#34;${deviceId}.${dpPrefix}AlertSize=${collection.size()}&#34;
+
+        double duration = ((collection.&#34;${dpPrefix}Duration&#34;.sum() / collection.size()) / 60).round(2)
+        println &#34;${deviceId}.${dpPrefix}AverageDuration=${duration}&#34;
+
+        double duration95th =  getPercentile(collection.&#34;${dpPrefix}Duration&#34;, 0.95, dpPrefix, deviceId)
+        println &#34;${deviceId}.${dpPrefix}AverageDuration95th=${duration95th}&#34;
+    }
+    else{
+        println &#34;${deviceId}.${dpPrefix}AlertSize=0&#34;
+        println &#34;${deviceId}.${dpPrefix}AverageDuration=0&#34;
+        println &#34;${deviceId}.${dpPrefix}AverageDuration95th=0&#34;
+        println &#34;${deviceId}.${dpPrefix}AverageDuration95th=0&#34;
+        println &#34;${deviceId}.${dpPrefix}LongestAlertDuration=0&#34;
+    }
+}
+
+Double getPercentile(collection, percentile, dpPrefix, deviceId) {
+    def sortedCollection = collection.sort()
+
+    double longestAlertDuration = (sortedCollection[-1] / 60).round(2)
+    println &#34;${deviceId}.${dpPrefix}longestAlertDuration=${longestAlertDuration}&#34;
+
+    int percentileIndex = Math.round(sortedCollection.size() * percentile)
+    sortedCollection.subList(percentileIndex,sortedCollection.size()).clear()
+
+    double result =  ((sortedCollection.sum() / Math.ceil(sortedCollection.size())) / 60).round(2)
+
+    return result
+}</value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>windowsscript</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>linuxscript</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>windowscmdline</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>linuxcmdline</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        </attributes>
+        <datapoints>
+        <datapoint>
+            <name>alertSize</name>
+            <originId>50570zRZRXqwZ7P37CflcA</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.alertSize</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>number of alerts used in MTTR average calculation</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>averageDuration</name>
+            <originId>VRAwHolqQditsGdqSoSRzw</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.averageDuration</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>average alert duration in minutes based on rolling period.</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>averageDuration95th</name>
+            <originId>WazwqNqQSpeclUrgqCajew</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.averageDuration95th</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>95th percentile average duration</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>criticalAlertSize</name>
+            <originId>lUPjnlKgRYukmNT3XNDmMA</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.criticalAlertSize</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>criticalAverageDuration</name>
+            <originId>GKqw3FbgRP-TBe7ZhRXa6w</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.criticalAverageDuration</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>criticalAverageDuration95th</name>
+            <originId>LW8ic3JEQ0COsxC_V4m7hg</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.criticalAverageDuration95th</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>criticalLongestAlertDuration</name>
+            <originId>uBxYl5pYQfO75_R_WdQtIw</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.criticalLongestAlertDuration</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>errorAlertSize</name>
+            <originId>mbboK3geSiCFVi54UeF8UQ</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.errorAlertSize</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>errorAverageDuration</name>
+            <originId>5B3z001MQFGc2s5O0P4E8w</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.errorAverageDuration</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>errorAverageDuration95th</name>
+            <originId>sRUwv4lVRpa2HnYCKQ8Afw</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.errorAverageDuration95th</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>errorLongestAlertDuration</name>
+            <originId>o8bt_i_5RgmJAsOxRMihmQ</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.errorLongestAlertDuration</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>executionTime</name>
+            <originId>CebraaVnQYu2g7djTrtKjQ</originId>
+            <dataType>4</dataType>
+            <type>2</type>
+            <postprocessormethod>none</postprocessormethod>
+            <postprocessorparam></postprocessorparam>
+            <usevalue>responseTime</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>longestAlertDuration</name>
+            <originId>AYWoGj3lTy2h6hn5KNmCnA</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.longestAlertDuration</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Longest alert in minutes based on current mttr period</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>durationPeriod</name>
+            <originId>5SanROMhQZexOj5u18ymfw</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.durationPeriod</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Period of time in days used to calculate alert duration. Default value is 1 can be overridden by setting the property alert.duration.period where needed.</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>warnAlertSize</name>
+            <originId>E-V_HZv5TRelMGzSRl2fEw</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.warnAlertSize</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>warnAverageDuration</name>
+            <originId>j4HyNuhnQG-z0SIxwsJu_A</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.warnAverageDuration</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>warnAverageDuration95th</name>
+            <originId>ILrFFG04Ssuj8sL-bxRdJA</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.warnAverageDuration95th</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>warnLongestAlertDuration</name>
+            <originId>IIDg-ZJoS72fNZ54wGpUmg</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>##WILDVALUE##.warnLongestAlertDuration</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        </datapoints>
+        <graphs>
+        <graph>
+            <name>Device Alert Duration Average</name>
+            <title>Device Alert Duration Average</title>
+            <originId></originId>            <verticallabel>minutes</verticallabel>
+            <rigid>false</rigid>
+            <maxvalue>NaN</maxvalue>
+            <minvalue>-1.0</minvalue>
+            <displayprio>1</displayprio>
+            <timescale>1day</timescale>
+            <base1024>false</base1024>
+            <graphdatapoints>
+        <graphdatapoint>
+            <name>averageDuration</name>
+            <datapointname>averageDuration</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+            </graphdatapoints>
+            <graphvirtualdatapoints>
+            </graphvirtualdatapoints>
+            <graphdatas>
+            <graphdata>
+                <type>3</type>
+                <legend>averageDuration</legend>
+                <color>silver</color>
+                <datapointname>averageDuration</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            </graphdatas>
+        </graph>
+        <graph>
+            <name>Resolved Alert Count: Rolling ##ALERT.DURATION.PERIOD## day(s)</name>
+            <title>Resolved Alert Count: Rolling ##ALERT.DURATION.PERIOD## day(s)</title>
+            <originId></originId>            <verticallabel># of alerts</verticallabel>
+            <rigid>false</rigid>
+            <maxvalue>NaN</maxvalue>
+            <minvalue>-1.0</minvalue>
+            <displayprio>1</displayprio>
+            <timescale>1day</timescale>
+            <base1024>false</base1024>
+            <graphdatapoints>
+        <graphdatapoint>
+            <name>alertSize</name>
+            <datapointname>alertSize</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+            </graphdatapoints>
+            <graphvirtualdatapoints>
+            </graphvirtualdatapoints>
+            <graphdatas>
+            <graphdata>
+                <type>3</type>
+                <legend>alertSize</legend>
+                <color>green</color>
+                <datapointname>alertSize</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            </graphdatas>
+        </graph>
+        </graphs>
+        <overviewgraphs>
+        <overviewgraph>
+            <name>Top Device Alert Duration Average</name>
+            <title>Top Devices by Alert Duration Average: Rolling ##ALERT.DURATION.PERIOD## day(s)</title>
+            <verticallabel>minutes</verticallabel>
+            <rigid>false</rigid>
+            <maxvalue>NaN</maxvalue>
+            <minvalue>-1.0</minvalue>
+            <displayprio>1</displayprio>
+            <timescale>1day</timescale>
+            <base1024>false</base1024>
+            <aggregated>false</aggregated>
+            <originId></originId>
+            <datapoints>
+        <overviewgraphdatapoint>
+            <name>averageDuration</name>
+            <datapointname>averageDuration</datapointname>
+            <cf>1</cf>
+            <aggregateMethod>sum</aggregateMethod>
+            <originId></originId>
+        </overviewgraphdatapoint>
+            </datapoints>
+            <virtualdatapoints>
+            </virtualdatapoints>
+            <lines>
+            <overviewgraphline>
+                <type>1</type>
+                <legend>##INSTANCE##</legend>
+                <datapointname>averageDuration</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+                <color>silver</color>
+            </overviewgraphline>
+            </lines>
+        </overviewgraph>
+        <overviewgraph>
+            <name>Top Devices by Resolved Alert Count</name>
+            <title>Top Devices by Resolved Alert Count: Rolling ##ALERT.DURATION.PERIOD## day(s)</title>
+            <verticallabel># of alerts</verticallabel>
+            <rigid>false</rigid>
+            <maxvalue>NaN</maxvalue>
+            <minvalue>-1.0</minvalue>
+            <displayprio>1</displayprio>
+            <timescale>1day</timescale>
+            <base1024>false</base1024>
+            <aggregated>false</aggregated>
+            <originId></originId>
+            <datapoints>
+        <overviewgraphdatapoint>
+            <name>alertSize</name>
+            <datapointname>alertSize</datapointname>
+            <cf>1</cf>
+            <aggregateMethod>sum</aggregateMethod>
+            <originId></originId>
+        </overviewgraphdatapoint>
+            </datapoints>
+            <virtualdatapoints>
+            </virtualdatapoints>
+            <lines>
+            <overviewgraphline>
+                <type>1</type>
+                <legend>##INSTANCE##</legend>
+                <datapointname>alertSize</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+                <color>silver</color>
+            </overviewgraphline>
+            </lines>
+        </overviewgraph>
+        </overviewgraphs>
+        <scripts>
+        </scripts>
+    </entry>
+</feed>
