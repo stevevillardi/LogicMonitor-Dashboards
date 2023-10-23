@@ -5,7 +5,7 @@
   <errmsg>OK</errmsg>
   <interval>0</interval>
     <entry type="predatasource">
-        <version>1697830796</version>
+        <version>1698091346</version>
         <name>LogicMonitor_Portal_Alert_Statistics</name>
         <displayedas>LogicMonitor Portal Alert Statistics</displayedas>
         <description>Tracks alert duration averages over a rolling period, defaults to 7 day(s).</description>
@@ -45,7 +45,8 @@
  ******************************************************************************/
 import groovy.json.*
 
-def durationPeriod = hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;7&#34; //Default to 7 day(s)
+def durationPeriod = hostProps.get(&#34;alert.analysis.period&#34;) ?: hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;7&#34; //Default to 7 day(s)
+def durationMinimum = hostProps.get(&#34;alert.analysis.minimumTimeInSeconds&#34;) ?: hostProps.get(&#34;alert.duration.minimumTimeInSeconds&#34;) ?: &#34;0&#34; //Default to include alerts of any duration)
 
 /*Calculate start and end date for alert query*/
 int timePeriod = 24 * durationPeriod.toInteger() //hours for rolling average
@@ -91,6 +92,9 @@ if(alerts){
                 break;
         }
 	}
+	
+    //Remove alerts not meeting minimum duration
+    alerts.removeAll { it.Duration &#60;= durationMinimum.toInteger()}
 
     def warnAlerts = alerts.findAll { it.severity.toInteger() == 2}
     def errorAlerts = alerts.findAll { it.severity.toInteger() == 3}

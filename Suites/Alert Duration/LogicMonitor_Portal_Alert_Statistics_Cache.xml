@@ -5,7 +5,7 @@
   <errmsg>OK</errmsg>
   <interval>0</interval>
     <entry type="predatasource">
-        <version>1697835479</version>
+        <version>1698090226</version>
         <name>LogicMonitor_Portal_Alert_Statistics_Cache</name>
         <displayedas>LogicMonitor Portal Alert Statistics (Cache)</displayedas>
         <description>Populates collector script cache with cleared alert metrics and resources for use with alert statistics modules.</description>
@@ -55,10 +55,11 @@ import groovy.json.*
 
 String apiId   = hostProps.get(&#34;lmaccess.id&#34;)  ?: hostProps.get(&#34;logicmonitor.access.id&#34;)
 String apiKey  = hostProps.get(&#34;lmaccess.key&#34;) ?: hostProps.get(&#34;logicmonitor.access.key&#34;)
-def lookbackPeriod = hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;7&#34; //Default to 7 day(s)
+def lookbackPeriod = hostProps.get(&#34;alert.analysis.period&#34;) ?: hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;7&#34; //Default to 7 day(s)
 
-def excludeUnACKedAlerts = hostProps.get(&#34;alert.duration.excludeUnACKedAlerts&#34;) ?: &#34;false&#34; //Default to false
-def excludeSDTedAlerts = hostProps.get(&#34;alert.duration.excludeSDTedAlerts&#34;) ?: &#34;false&#34; //Default to false
+def excludeUnACKedAlerts = hostProps.get(&#34;alert.analysis.excludeUnACKedAlerts&#34;) ?: hostProps.get(&#34;alert.duration.excludeUnACKedAlerts&#34;) ?: &#34;false&#34; //Default to false
+def excludeSDTedAlerts = hostProps.get(&#34;alert.analysis.excludeSDTedAlerts&#34;) ?: hostProps.get(&#34;alert.duration.excludeSDTedAlerts&#34;) ?: &#34;false&#34; //Default to false
+def datasourceFilter = hostProps.get(&#34;alert.analysis.datasourceList&#34;) ?: hostProps.get(&#34;alert.duration.datasourceList&#34;) ?: &#34;*&#34; //Default to include all datasources
 
 def portalName = hostProps.get(&#34;lmaccount&#34;)    ?: Settings.getSetting(Settings.AGENT_COMPANY)
 Map proxyInfo  = getProxyInfo()
@@ -75,7 +76,7 @@ def ACKFilter = &#34;*&#34;
 if(excludeUnACKedAlerts == &#34;false&#34;){ACKFilter = &#34;*&#34;}
 if(excludeSDTedAlerts == &#34;true&#34;){SDTFilter = &#34;false&#34;}
 
-def propfilter = &#34;,acked:\&#34;${ACKFilter}\&#34;,sdted:\&#34;${SDTFilter}\&#34;&#34;
+def propfilter = &#34;,acked:\&#34;${ACKFilter}\&#34;,sdted:\&#34;${SDTFilter}\&#34;,instanceName~\&#34;${datasourceFilter.replace(&#34;,&#34;, &#34;|&#34;)}\&#34;&#34;
 
 def filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;:${startEpoch}&#34; + propfilter
 def fields = &#34;severity,monitorObjectId,monitorObjectName,id,startEpoch,endEpoch,rule,acked,sdted,chain&#34;
