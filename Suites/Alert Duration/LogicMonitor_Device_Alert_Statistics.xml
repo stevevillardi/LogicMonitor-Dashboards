@@ -5,7 +5,7 @@
   <errmsg>OK</errmsg>
   <interval>0</interval>
     <entry type="predatasource">
-        <version>1698091227</version>
+        <version>1698091533</version>
         <name>LogicMonitor_Device_Alert_Statistics</name>
         <displayedas>LogicMonitor Device Alert Statistics</displayedas>
         <description>Tracks alert duration average over a rolling period of time.</description>
@@ -69,7 +69,7 @@ return 0
         <agdparams>auto.device.type</agdparams>
         <group></group>
         <tags></tags>
-        <technology>User alert.duration.period to define the rolling time period used in alert duration calculation(in days).</technology>
+        <technology>User alert.analysis.period to define the rolling time period used in alert duration calculation(in days).</technology>
         <adlist><![CDATA[{"agdmethod":"ilp","method":"ad_script","agdparams":"auto.device.type","id":0,"filters":[],"params":{"type":"embeded","groovyscript":"/*******************************************************************************\n * © 2007-2023 - LogicMonitor, Inc. All rights reserved.\n ******************************************************************************/\nimport groovy.json.*\n\ndef devices\n\nMap deviceType = [\n    0: \"Standard Resources\",\n    2: \"AWS Resources\",\n    4: \"Azure Resources\",\n    6: \"Services\",\n    7: \"GCP Resources\",\n    8: \"K8s Resources\",\n    10: \"SaaS Resources\",\n    11: \"Synthetics\"\n]\n\ntry {\n    scriptCache = this.class.classLoader.loadClass(\"com.santaba.agent.util.script.ScriptCache\").getCache();\n    //scriptCache.remove(\"DeviceAlertStats-ResourceCache\")\n    String resourceCache = scriptCache.get(\"DeviceAlertStats-ResourceCache\");\n    if(resourceCache == null){\n        return -1\n    }\n    else{\n        devices = new JsonSlurper().parseText(resourceCache)\n    }\n} \ncatch (Exception ex) {\n\tprintln ex\n    return -1\n}\n\nif(devices){\n    devices.each { device -> \n        \n        println \"${device.id}##${device.displayName}######auto.device.type=${deviceType.getOrDefault(device.deviceType,\"Other Resources\")}\"\n    }\n}\nreturn 0\n"}}]]></adlist>
         <schemaVersion>2</schemaVersion>
         <dataSourceType>1</dataSourceType>

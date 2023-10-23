@@ -5,7 +5,7 @@
   <errmsg>OK</errmsg>
   <interval>0</interval>
     <entry type="predatasource">
-        <version>1698091346</version>
+        <version>1698091501</version>
         <name>LogicMonitor_Portal_Alert_Statistics</name>
         <displayedas>LogicMonitor Portal Alert Statistics</displayedas>
         <description>Tracks alert duration averages over a rolling period, defaults to 7 day(s).</description>
@@ -28,7 +28,7 @@
         <agdparams></agdparams>
         <group></group>
         <tags></tags>
-        <technology>User alert.duration.period to define the rolling time period used in calculation in days.</technology>
+        <technology>User alert.analysis.period to define the rolling time period used in calculation in days.</technology>
         <adlist><![CDATA[{"agdmethod":"none","agdparams":"","id":0,"filters":[],"params":{}}]]></adlist>
         <schemaVersion>2</schemaVersion>
         <dataSourceType>1</dataSourceType>
