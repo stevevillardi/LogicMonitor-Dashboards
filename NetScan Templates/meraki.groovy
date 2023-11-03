@@ -2,348 +2,212 @@
  * © 2007-2023 - LogicMonitor, Inc. All rights reserved.
  ******************************************************************************/
  
-import com.logicmonitor.common.sse.utils.GroovyScriptHelper
+import com.logicmonitor.common.sse.utils.GroovyScriptHelper as GSH
 import com.logicmonitor.mod.Snippets
 import com.santaba.agent.AgentVersion
 import java.text.DecimalFormat
-import com.vmware.vim25.InvalidLoginFaultMsg
-import groovy.json.JsonSlurper
 import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
  
-def debug = false
-def log = false
- 
-// Bail out early if we don't have the correct minimum collector version to ensure netscan runs properly
-if (AgentVersion.AGENT_VERSION.toInteger() < 32400) {
-    throw new Exception("Upgrade collector running netscan to 32.400 or higher to run full featured enhanced netscan. Currently running version ${new DecimalFormat('00.000').format(collectorVersion / 1000)}.")
-}
+// To run in debug mode, set to true
+Boolean debug = false
+// To enable logging, set to true
+Boolean log = false
  
 // Set props object based on whether or not we are running inside a netscan or debug console
 def props
-// Required properties
-def host, displayName
 try {
-    host = hostProps.get('system.hostname') // This is the vCenter
+    hostProps.get("system.hostname")
     props = hostProps
-    displayName = props.get('system.displayname')
-    debug = true  // Set debug to true to ensure we do not output sensitive properties
+    debug = true  // set debug to true so that we can ensure we do not print sensitive properties
 }
 catch (MissingPropertyException) {
     props = netscanProps
-    host = props.get('vcenter.hostname')
-    displayName = props.get('vcenter.displayname') ?: host
 }
  
-// Required properties
-def user = props.get('vcenter.user') ?: props.get('vcsa.user') ?: props.get('esx.user')
-def pass = props.get('vcenter.pass') ?: props.get('vcsa.pass') ?: props.get('esx.pass')
-def addr = props.get('vcenter.url')  ?: props.get('vcsa.url')  ?: props.get('esx.url') ?: "https://${host}/sdk"
+String org = props.get("meraki.api.org")
+String key = props.get("meraki.api.key")
+if (!org) {
+    throw new Exception("Must provide meraki.api.org to run this script.  Verify necessary credentials have been provided in Netscan properties.")
+}
+if (!key) {
+    throw new Exception("Must provide meraki.api.key credentials to run this script.  Verify necessary credentials have been provided in Netscan properties.")
+}
  
-// Optional properties
-def eUser = props.get('esx.user') // Additional credentials for a standalone host
-def ePass = props.get('esx.pass')
+def logCacheContext = "${org}::cisco-meraki-cloud"
  
-def rootFolder = props.get('rootFolder') // Root folder can be nested, i.e. 'site1/subfolder1'
+Integer collectorVersion = AgentVersion.AGENT_VERSION.toInteger()
+  
+// Bail out early if we don't have the correct minimum collector version to ensure netscan runs properly
+if (collectorVersion < 32400) {
+    def formattedVer = new DecimalFormat("00.000").format(collectorVersion / 1000)
+    throw new Exception("Upgrade collector running netscan to 32.400 or higher to run full featured enhanced netscan. Currently running version ${formattedVer}.")
+}
  
-// Default to true
-def includeVMs                  = (props.get('discover.vm')                                                   ?: true).toBoolean() // Toggle if we want to discover VMs, true = discover
-def includeESXiHosts            = (props.get('discover.esxi',        props.get('filter.esxiHosts'))           ?: true).toBoolean() // Toggle if we want to discover ESXi hosts, true = discover
-def includeHostsAndClustersView = (props.get('view.hostandcluster',  props.get('filter.hostandclusterview'))  ?: true).toBoolean() // Toggle for if we want to create the Host and Cluster view, true = create
-def includeVMsAndTemplatesView  = (props.get('view.vmsandtemplates', props.get('filter.vmsandtemplatesview')) ?: true).toBoolean() // Toggle for if we want to create the VM and templates view (only VMs will be discovered), true = create
-def includeStandaloneVM         = (props.get('view.standaloneVm',    props.get('filter.standaloneVm'))        ?: true).toBoolean() // Toggle for if we want to create the standalone VM folder, true = create
-binding.setProperty('includeStandaloneVM', includeStandaloneVM) // Make it global
+def modLoader = GSH.getInstance()._getScript("Snippets", Snippets.getLoader()).withBinding(getBinding())
+def emit        = modLoader.load("lm.emit", "1.1")
+def lmDebugSnip = modLoader.load("lm.debug", "1")
+def lmDebug     = lmDebugSnip.debugSnippetFactory(out, debug, log, logCacheContext)
+def httpSnip    = modLoader.load("proto.http", "0")
+def http        = httpSnip.httpSnippetFactory(props)
+def cacheSnip   = modLoader.load("lm.cache", "0")
+def cache       = cacheSnip.cacheSnippetFactory(lmDebug, logCacheContext)
+def ciscoMerakiCloudSnip = modLoader.load("cisco.meraki.cloud", "0")
+def ciscoMerakiCloud     = ciscoMerakiCloudSnip.ciscoMerakiCloudSnippetFactory(props, lmDebug, cache, http)
  
-// Default to false
-def applyVCenterCredentialsToESXHost = (props.get('esx.vcentercredentials') ?: false).toBoolean() // Toggle for if we want standalone ESXi hosts to also get vcenter.user/pass credentials. Note the ESXi modules only care about the ESX credentials.
+String orgDisplayname      = props.get("meraki.api.org.name") ?: "MerakiOrganization"
+String orgFolder           = props.get("meraki.api.org.folder") ? props.get("meraki.api.org.folder") + "/" : ""
+String serviceUrl          = props.get("meraki.service.url") ?: "https://api.meraki.com/api/v1"
+def networksWhitelist    = props.get("meraki.api.org.networks")?.tokenize(",")?.collect{ it.trim() }
+def collectorNetworksCSV = props.get("meraki.api.org.collector.networks.csv")
+def collectorNetworkInfo
+if (collectorNetworksCSV) collectorNetworkInfo = processCollectorNetworkInfoCSV(collectorNetworksCSV)
  
+String merakiSnmpCommunity = props.get("meraki.snmp.community.pass")
+String merakiSnmpSecurity  = props.get("meraki.snmp.security")
+String merakiSnmpAuth      = props.get("meraki.snmp.auth")
+String merakiSnmpAuthToken = props.get("meraki.snmp.authToken.pass")
+String merakiSnmpPriv      = props.get("meraki.snmp.priv")
+String merakiSnmpPrivToken = props.get("meraki.snmp.privToken.pass")
  
-modLoader = GroovyScriptHelper.getInstance()._getScript('Snippets', Snippets.getLoader()).withBinding(getBinding())
-def emit      = modLoader.load("lm.emit", "1.1")
-def debugSnip = modLoader.load("lm.debug", "1.0")
-def lmDebug   = debugSnip.debugSnippetFactory(out, debug, log, "VMware_vSphere_ESN")
-def lmvSphere = modLoader.load("vmware.vsphere", "1.0")
-def vSphere   = lmvSphere.vSphereWebServicesAPIFactory(addr, user, pass, lmDebug)
- 
-String cacheFilename = "VMware_${host}_devices"
 Map sensitiveProps = [
-    "vcenter.pass" : pass,
-    "vcsa.pass"    : pass,
-    "esx.pass"     : ePass,
+    "meraki.api.key"   : key,
+    "meraki.snmp.community.pass" : merakiSnmpCommunity,
+    "meraki.snmp.auth"           : merakiSnmpAuth,
+    "meraki.snmp.authToken.pass" : merakiSnmpAuthToken,
+    "meraki.snmp.privToken.pass" : merakiSnmpPrivToken
 ]
  
 // Determine whether there are devices cached on disk that still need to be added from previous netscan runs
-if (processResourcesJson(emit, cacheFilename, sensitiveProps, lmDebug)) return 0
+if (processResourcesJson(emit, "devices", sensitiveProps, lmDebug)) return 0
  
 List<Map> resources = []
-Map<String, String> ilpCredentials = [:]
-Map tags
-// Determine the vSphere host that we are making API queries to
-Map<String, Integer> productType = ['vpx' :   0, 'embeddedEsx' : 1]
-def productId = productType[vSphere.getAbout().productLineId]
-switch (productId) {
-    case 0: // vCenter
-        ilpCredentials['vcenter.user'] = user
-        ilpCredentials['vcenter.pass'] = pass
-        ilpCredentials['vcenter.addr'] = addr
-        tags = lmvSphere.vSphereAutomationAPIFactory(host, user, pass).withCloseable(){ it.getTagMap() } // Get all vCenter tags
-        lmDebug.LMDebugPrint( "DEBUG: vCenter tags found: ${tags}" )
-        break
-    case 1: // ESXi
-        ilpCredentials['esx.user'] = user
-        ilpCredentials['esx.pass'] = pass
-        ilpCredentials['esx.addr'] = addr
-        break
-        // gsx(VMware_Server) and esx(VMware_ESX) are not supported
+ 
+// Gather data from cache if running in debug otherwise make API requests
+def orgDevicesStatuses
+def orgDevices
+if (debug) {
+    orgDevicesStatuses = cache.cacheGet("${org}::organizationDeviceStatuses")
+    if (orgDevicesStatuses) orgDevicesStatuses = ciscoMerakiCloud.slurper.parseText(orgDevicesStatuses).values()
+} else {
+    orgDevicesStatuses = ciscoMerakiCloud.httpGetWithPaging("/organizations/${org}/devices/statuses")
+    if (orgDevicesStatuses) orgDevicesStatuses = ciscoMerakiCloud.slurper.parseText(orgDevicesStatuses)
 }
  
-def vms = vSphere.getMOs('VirtualMachine').each{ vSphere.updateEntityLineage(it) }
-def hosts = vSphere.getMOs('HostSystem').each{ vSphere.updateEntityLineage(it) }
-// Discover each VM
-if (includeVMs) {
-    vms.each { _vm ->
-        Map device = [:]
+// Organization device status data is required; we cannot proceed without it
+if (!orgDevicesStatuses) {
+    throw new Exception("Error occurred during organizations/${org}/devices/statuses HTTP GET: ${orgDevicesStatuses}.")
+}
  
-        def MOR = _vm.MOR
-        if (!MOR) {
-            lmDebug.LMDebugPrint("DEBUG: MOR not found for ${_vm}, skipping")
-            return
+if (debug) {
+    orgDevices = cache.cacheGet("${org}::organizationDevices")
+    if (orgDevices) orgDevices = ciscoMerakiCloud.slurper.parseText(orgDevices).values()
+} else {
+    orgDevices = ciscoMerakiCloud.httpGetWithPaging("/organizations/${org}/devices")
+    if (orgDevices) orgDevices = ciscoMerakiCloud.slurper.parseText(orgDevices)
+}
+ 
+def orgNetworkNames = [:]
+def orgNetworks
+if (debug) {
+    orgNetworks = cache.cacheGet("${org}::organizationNetworks")
+    if (orgNetworks) orgNetworks = ciscoMerakiCloud.slurper.parseText(orgNetworks).values()
+} else {
+    orgNetworks = ciscoMerakiCloud.httpGetWithPaging("/organizations/${org}/networks")
+    if (orgNetworks) orgNetworks = ciscoMerakiCloud.slurper.parseText(orgNetworks)
+}
+ 
+// Network data is required; we cannot proceed without it
+if (!orgNetworks) {
+    throw new Exception("Error occurred during organizations/${org}/networks HTTP GET: ${orgNetworks}.")
+}
+ 
+orgNetworks.each { orgNetwork ->
+    def networkId = orgNetwork.get("id")
+    def networkName = orgNetwork.get("name")
+    orgNetworkNames.put(networkId, networkName)
+}
+ 
+orgDevicesStatuses.each { orgDevice ->
+    def networkId   = orgDevice.get("networkId")
+    def networkName = orgNetworkNames.get(networkId)
+    // Verify this network should be included based on customer whitelist configuration
+    if (networksWhitelist != null && !networksWhitelist.contains(networkId)) return
+ 
+    def ip = orgDevice.get("lanIp") ?: orgDevice.get("publicIp")
+    def name = orgDevice.get("name")
+    def productType = orgDevice.get("productType")
+    def serial = orgDevice.get("serial")
+    // Verify we have minimum requirements for device creation
+    if (ip && networkId && productType && serial) {
+        if (ip == "127.0.0.1") ip = name
+        if (!name) name = ip
+        def deviceProps = [
+            "meraki.api.key"          : key,
+            "meraki.api.org"          : emit.sanitizePropertyValue(org),
+            "meraki.api.network"      : emit.sanitizePropertyValue(networkId),
+            "meraki.api.network.name" : emit.sanitizePropertyValue(networkName),
+            "meraki.serial"           : emit.sanitizePropertyValue(serial)
+        ]
+ 
+        if (networksWhitelist != null) deviceProps.put("meraki.api.org.networks", emit.sanitizePropertyValue(networksWhitelist))
+ 
+        if (merakiSnmpCommunity) deviceProps.put("meraki.snmp.community.pass", merakiSnmpCommunity)
+        if (merakiSnmpSecurity) deviceProps.put("meraki.snmp.security", merakiSnmpSecurity)
+        if (merakiSnmpAuth) deviceProps.put("meraki.snmp.auth", merakiSnmpAuth)
+        if (merakiSnmpAuthToken) deviceProps.put("meraki.snmp.authToken.pass", merakiSnmpAuthToken)
+        if (merakiSnmpPriv) deviceProps.put("meraki.snmp.priv", merakiSnmpPriv)
+        if (merakiSnmpPrivToken) deviceProps.put("meraki.snmp.privToken.pass", merakiSnmpPrivToken)
+ 
+        def tags = orgDevices?.find { it.serial == serial}?.tags
+        if (tags && tags != "[]") deviceProps.put("meraki.tags", tags.join(","))
+     
+        def firmware = orgDevices.find { it.serial == serial}?.firmware
+        if (firmware) deviceProps.put("meraki.firmware", firmware)
+ 
+        if (productType == "camera") {
+            deviceProps.put("system.categories", "CiscoMerakiCamera")
+        } else if (productType == "switch") {
+            deviceProps.put("system.categories", "CiscoMerakiSwitch")
+        } else if (productType == "wireless") {
+            deviceProps.put("system.categories", "CiscoMerakiWireless")
+        } else if (productType == "appliance") {
+            deviceProps.put("system.categories", "CiscoMerakiAppliance")
         }
  
-        def compLine = vSphere.getComputeLineage(MOR?.val)
-        def vmLine = vSphere.getVmLineage(MOR?.val)
-        def compFolder = (includeHostsAndClustersView) ? folderFormatter(compLine, rootFolder) : null
-        def vmFolder   = (includeVMsAndTemplatesView)  ? folderFormatter(vmLine,   rootFolder) : null
+        deviceProps.put("meraki.productType", productType)
  
-        if (!compFolder && !vmFolder) {
-            lmDebug.LMDebugPrint("DEBUG: VM ${_vm.name} skipped due to no containing folder determined. This could be due to different filters being set.")
-            return
-        }
- 
-        def guest = _vm.guest
-        def ips = []
- 
-        guest?.net?.eachWithIndex { nic, number -> ips << nic?.ipAddress }
-        def hostname = ips.flatten().findAll { it.contains('.') }
- 
-        def foundDNS = true
-        if (!hostname) { // Couldn't find any IPs
-            lmDebug.LMDebugPrint("No IPs could not be found for VM: ${_vm.name}")
-            if (guest?.hostName) {
-                hostname[0] = guest?.hostName
-            } else {
-                hostname[0] = _vm.name
-                foundDNS = false
-            }
-        }
- 
-        if (productId == 0 && hostname?.contains(host)) { // This is the vCenter VM
-            def baseFolder = (vmFolder ?: folderFormatter(vmLine, rootFolder))?.split('/')[0]
-            // Rely on the vmFolder here. If customer is not including standalone VMs, but the vCenter is a standalone VM, discover it anyway
-            device = [
-                    'hostname'   : "${host}",
-                    'displayname': "${displayName}",
-                    'hostProps'  : [
-                            'system.categories': 'VMware_vCenter,VMware_VM'
-                    ],
-                    'groupName'  : [baseFolder, compFolder, vmFolder].minus(null)
+        // Set group and collector ID based on user CSV inputs if provided
+        if (collectorNetworkInfo) {
+            def collectorId = collectorNetworkInfo[networkId]["collectorId"]
+            def folder      = collectorNetworkInfo[networkId]["folder"]
+            Map resource = [
+                "hostname"    : ip,
+                "displayname" : name,
+                "hostProps"   : deviceProps,
+                "groupName"   : ["${orgFolder}${folder}/${networkName}"],
+                "collectorId" : collectorId
             ]
+            resources.add(resource)
         } else {
-            device = [
-                    'hostname'   : hostname[0],
-                    'displayname': _vm.name,
-                    'hostProps'  : [
-                            'system.categories': 'VMware_VM'
-                    ],
-                    'groupName'  : [compFolder, vmFolder].minus(null)
+            Map resource = [
+                "hostname"    : ip,
+                "displayname" : name,
+                "hostProps"   : deviceProps,
+                "groupName"   : ["${orgFolder}${orgDisplayname}/${networkName}"]
             ]
+            resources.add(resource)
         }
- 
-        // If the netscan is running on a vCenter device
-        if (productId == 0) {
-            // Add vCenter tags
-            def tagP = tags[MOR?.value as String]?.values.collect { k, v ->
-                v.collect { "${k}.${it}" }
-            }.flatten().join(",")
-            device.hostProps.'vcenter.tags' = tagP
- 
-            // Add all parent entities as device properties
-            def lineage = lineageParser(compLine + vmLine)
-            lineage.each { k, v -> device.hostProps?."vcenter.${k.toLowerCase()}" = v.join(',') }
-        }
- 
-        device.hostProps.'netscan.powerstate' = _vm.runtime.powerState // Add power state for filtering
-        device.hostProps.'netscan.foundDNS' = foundDNS as String
-        device.hostProps += ilpCredentials
- 
-        resources.add(device)
     }
 }
  
-if (includeESXiHosts) {
-    hosts.each{ _host ->
-        Map device = [:]
- 
-        def MOR = _host.MOR
-        if (!MOR) {
-            lmDebug.LMDebugPrint( "DEBUG: MOR not found for ${_host}, skipping" )
-            return
-        }
- 
-        def compLine = vSphere.getComputeLineage(_host.MOR?.val)
-        def compFolder = folderFormatter(compLine, rootFolder)
- 
-        def vSphere1
-        lmDebug.LMDebugPrint( "DEBUG: Attempting to login to the ESX host ${_host}" )
- 
-        def addr1 = "https://${_host.name}/sdk"
-        def user1 = eUser ?: user
-        def pass1 = ePass ?: pass
-        try {
-            vSphere1 = lmvSphere.vSphereWebServicesAPIFactory(addr1, user1, pass1, 10, 10)
-        } catch (InvalidLoginFaultMsg e) {
-            lmDebug.LMDebugPrint( "DEBUG: Unable to login to ESXi host ${_host} at ${addr1}, skipping..." )
-        }
-        if (!vSphere1) {
-            lmDebug.LMDebugPrint( "DEBUG: Unable to connect to ESXi host ${_host.name} with the provided credentials" )
- 
-            // We were unable to connect to the ESXi host directly, just add it as a standard device
-            device = [
-                    'hostname'   : _host.name,
-                    'displayname': _host.name,
-                    'hostProps'  : [:], // Do not set the system category 'VMware_ESXi' since we can't actually use this as an ESXi device
-                    'groupName'  : ["${compFolder}/ESXi hosts"].minus(null)
-            ]
-        } else {
-            lmDebug.LMDebugPrint( "DEBUG: Successful connection to ESXi host ${_host.name}" )
-            def esxHost = vSphere1.getMOs('HostSystem')[0]
-            device = [
-                    'hostname'   : esxHost.name,
-                    'displayname': esxHost.name,
-                    'hostProps'  : [
-                        'esx.user'         : user1,
-                        'esx.pass'         : pass1,
-                        'esx.addr'         : addr1,
-                        'system.categories': 'VMware_ESXi'
-                    ],
-                    'groupName'  : ["${compFolder}/ESXi hosts"].minus(null)
-            ]
-        }
- 
-        device.hostProps.'vcenter.hostname' = host
-        if (applyVCenterCredentialsToESXHost) { device.hostProps += ilpCredentials }
- 
-        // If the netscan is running on a vCenter device
-        if (productId == 0) {
-            // Add vCenter tags
-            def tagP = tags[MOR?.value as String]?.values.collect{ k, v ->
-                v.collect{ "${k}.${it}" }
-            }.flatten().join(",")
-            device.hostProps.'vcenter.tags' = tagP
- 
-            // Add all parent entities as device properties
-            def lineage = lineageParser(compLine)
-            lineage.each{ k, v -> device.hostProps?."vcenter.${k.toLowerCase()}" = v.join(',') }
-        }
- 
-        resources.add(device)
-    }
-}
- 
-emitWriteJsonResources(emit, cacheFilename, resources, lmDebug)
+emitWriteJsonResources(emit, "devices", resources, lmDebug)
  
 return 0
  
  
 /**
- * Function for transforming the inventory view/device lineage -> formatted LM group structure
- *
- * @param lineage Lineage generated from vSphere.getComputeLineage/vSphere.getVMLineage functions
- * @param rootFolder optional property to set the root folder for the vSphere that all other folders will be nested in
- * @return String of the formatted folder for netscan groupName parameter
- */
-String folderFormatter(List<Map> lineage, String rootFolder = '') {
-    if (lineage.size() > 1) {
-        def folder = lineage.collect{
-            switch (it.type.toUpperCase()) {
-                case 'FOLDER' :
-                    if (it.parent[0] == null) { // This is the parent folder
-                        return ((rootFolder) ?: "VMware - ${it.name}")
-                    } else if (it.name == 'vm') {
-                        return 'VMs' // VMs and templates folder
-                    } else {
-                        return it.name
-                    }
-                    break
-                case 'DATACENTER' :
-                    return "Datacenter - ${it.name}"
-                    break
-                case 'CLUSTERCOMPUTERESOURCE' :
-                    return "Cluster - ${it.name}"
-                    break
-                case 'RESOURCEPOOL' :
-                    return "Resource Pool - ${it.name}"
-                    break
-                case 'VIRTUALMACHINE' :
-                case 'HOSTSYSTEM' :
-                    // The devices we want to discover
-                    return it.name
-                    break
-                case 'COMPUTERESOURCE' :
-                    return 'Standalone ESXi hosts'
-                default:
-                    return it.name
-            }
-            // Don't put the device in a folder named after it
-        }[0..-2]
- 
-        if (lineage.size() >= 2) {
-            // Check for standalone VMs that are not in a resourcePool, and put them in their own standalone folder
-            if ( lineage[-1].type == 'VIRTUALMACHINE' && (lineage[-2].type != 'RESOURCEPOOL' && lineage[-2].type != 'FOLDER')) {
-                if (includeStandaloneVM) {
-                    folder << 'Standalone VMs'
-                } else {
-                    // This is a standalone, and if we don't want to include it, return nothing
-                    return null
-                }
-            }
-        }
-        return folder.join('/')
-    } else {
-        return
-    }
-}
- 
- 
-/**
- * Determines which nested folders/datacenter/cluster/resourcepool/etc. that an object belongs to.
- * Ignores the auto-generated folders that all VMs exist in. These folders are not visible in the VM, but do exist in the backend
- *
- * @param lineage Lineage generated from vSphere.getComputeLineage/vSphere.getVMLineage functions
- * @return Map of the folders/datacenter/cluster/resourcepool/etc. that are provided from the lineage
- */
-Map<String, List<String>> lineageParser(List<Map> lineage) {
-    Map<String, List<String>> out = [:].withDefault{[]}
- 
-    lineage.each{ out[it?.type] << it?.name }
-    out.collectEntries{ k, v ->
-        v.unique()
-        switch (k.toUpperCase()) {
-            case 'CLUSTERCOMPUTERESOURCE':
-                k = 'CLUSTER'
-                break
-            case 'FOLDER':
-                v.remove('vm') // Autogenerated folders
-                v.remove('Datacenters')
-                break
-        }
-        _out = [k, v]
-    }
-}
- 
- 
-/**
  * Sanitizes filepath and instantiates File object
- *
  * @param filename String
  * @param fileExtension String
  * @return File object using sanitized relative filepath
@@ -363,14 +227,56 @@ File newFile(String filename, String fileExtension) {
  
  
 /**
+ * Processes a CSV with headers collector id, network organization device name, folder, and network
+ * @param filename String
+ * @return collectorInfo Map with network id as key and Map of additional attributes as value
+*/
+Map processCollectorNetworkInfoCSV(String filename) {
+    // Read file into memory and split into list of lists
+    def csv = newFile(filename, "csv")
+    def rows = csv.readLines()*.split(",")
+    def collectorInfo = [:]
+ 
+    // Verify whether headers are present and expected values
+    // Sanitize for casing and extra whitespaces while gathering headers
+    def maybeHeaders = rows[0]*.toLowerCase()*.trim()
+    if (maybeHeaders.contains("collector id") && maybeHeaders.contains("folder") && maybeHeaders.contains("network")) {
+        Map headerIndices = [:]
+        maybeHeaders.eachWithIndex{ val, i ->
+            headerIndices[val] = i
+        }
+        // Index values for headers to ensure we key the correct index regardless of order
+        def ni = headerIndices["network"]
+        def ci = headerIndices["collector id"]
+        def fi = headerIndices["folder"]
+ 
+        // Remove headers from dataset
+        def data = rows[1..-1]
+        // Build a map indexed by network for easy lookups later
+        data.each{ entry ->
+            collectorInfo[entry[ni]] = [
+                    "collectorId" : entry[ci],
+                    "folder"      : entry[fi]
+                ]
+        }
+    }
+    // Bail out early if we don't have the expected headers in the provided CSV
+    else {
+        throw new Exception(" Required headers not provided in CSV.  Please provide \"Collector ID\", \"Network Organization Device Name\", \"Folder Name, \"and Network (case insensitive).  Headers provided: \"${rows[0]}\"")
+    }
+ 
+    return collectorInfo
+}
+ 
+ 
+/**
  * Replaces cached props stored with bogus values with their correct values
- *
  * @param cachedProps Map of hostProps values stored in file cache
  * @param sensitiveProps Map of sensitive properties configured in the netscan to use for updating cachedProps values
  * @return completeHostProps Map updated hostProps with no bogus values
 */
 Map processCachedHostProps(Map cachedProps, Map sensitiveProps) {
-    Map completeHostProps = cachedProps.collectEntries{ k, v ->
+    Map completeHostProps = cachedProps.collectEntries{ k,v ->
                                 if (sensitiveProps.containsKey(k)) {
                                     return [k as String, sensitiveProps[k]]
                                 }
@@ -389,7 +295,6 @@ Map processCachedHostProps(Map cachedProps, Map sensitiveProps) {
  
 /**
  * Processes a JSON file representing resources cached to disk on the collector
- *
  * @param emit Snippet object for lm.emit (requires version 1.0)
  * @param filename String
  * @param sensitiveProps Map of sensitive properties configured in the netscan to use for updating cachedProps values
@@ -425,7 +330,6 @@ Boolean processResourcesJson(emit, String filename, Map sensitiveProps, lmDebug)
  
 /**
  * Output resources to stdout and cache any remainders to JSON file on collector disk
- *
  * @param emit Snippet object for lm.emit (requires version 1.0)
  * @param filename String
  * @param resources List<Map> resources to be added from netscan
