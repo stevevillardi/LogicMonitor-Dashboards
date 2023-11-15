@@ -4,8 +4,10 @@
   <status>200</status>
   <errmsg>OK</errmsg>
   <interval>0</interval>
+  <kmsKeyId></kmsKeyId>
+  <pkdsRegion></pkdsRegion>
     <entry type="predatasource">
-        <version>1698090226</version>
+        <version>1700024027</version>
         <name>LogicMonitor_Portal_Alert_Statistics_Cache</name>
         <displayedas>LogicMonitor Portal Alert Statistics (Cache)</displayedas>
         <description>Populates collector script cache with cleared alert metrics and resources for use with alert statistics modules.</description>
@@ -29,7 +31,7 @@
         <group></group>
         <tags></tags>
         <technology></technology>
-        <adlist><![CDATA[{"agdmethod":"none","agdparams":"","id":0,"filters":[],"params":{}}]]></adlist>
+        <adlist><![CDATA[{"agdmethod":"none","agdparams":"","locatorId":"","id":0,"filters":[],"params":{},"version":""}]]></adlist>
         <schemaVersion>2</schemaVersion>
         <dataSourceType>1</dataSourceType>
         <attributes>
@@ -44,266 +46,299 @@
  * © 2007-2023 - LogicMonitor, Inc. All rights reserved.
  ******************************************************************************/
 
-import groovy.json.JsonSlurper
-import com.santaba.agent.util.Settings
-import com.santaba.agent.live.LiveHostSet
-import org.apache.commons.codec.binary.Hex
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
-import java.security.MessageDigest
-import groovy.json.*
+ import groovy.json.JsonSlurper
+ import com.santaba.agent.util.Settings
+ import com.santaba.agent.live.LiveHostSet
+ import org.apache.commons.codec.binary.Hex
+ import javax.crypto.Mac
+ import javax.crypto.spec.SecretKeySpec
+ import java.security.MessageDigest
+ import groovy.json.*
+ 
+ String apiId   = hostProps.get(&#34;lmaccess.id&#34;)  ?: hostProps.get(&#34;logicmonitor.access.id&#34;)
+ String apiKey  = hostProps.get(&#34;lmaccess.key&#34;) ?: hostProps.get(&#34;logicmonitor.access.key&#34;)
+ def lookbackPeriod = hostProps.get(&#34;alert.analysis.period&#34;) ?: hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;7&#34; //Default to 7 day(s)
+ 
+ def excludeUnACKedAlerts = hostProps.get(&#34;alert.analysis.excludeUnACKedAlerts&#34;) ?: hostProps.get(&#34;alert.duration.excludeUnACKedAlerts&#34;) ?: &#34;false&#34; //Default to false
+ def excludeSDTedAlerts = hostProps.get(&#34;alert.analysis.excludeSDTedAlerts&#34;) ?: hostProps.get(&#34;alert.duration.excludeSDTedAlerts&#34;) ?: &#34;false&#34; //Default to false
+ def datasourceFilter = hostProps.get(&#34;alert.analysis.datasourceList&#34;) ?: hostProps.get(&#34;alert.duration.datasourceList&#34;) ?: &#34;*&#34; //Default to include all datasources
+ 
+ def portalName = hostProps.get(&#34;lmaccount&#34;)    ?: Settings.getSetting(Settings.AGENT_COMPANY)
+ Map proxyInfo  = getProxyInfo()
+ 
+ /*Calculate start and end date for alert query*/
+ int timePeriod = 24 * lookbackPeriod.toInteger() //hours for rolling average
+ Date now = new Date()
+ long endEpoch = now.getTime() / 1000 //in seconds
+ long startEpoch = endEpoch - (timePeriod*3600)
+ 
+ def SDTFilter = &#34;*&#34;
+ def ACKFilter = &#34;*&#34;
+ 
+ if(excludeUnACKedAlerts == &#34;false&#34;){ACKFilter = &#34;*&#34;}
+ if(excludeSDTedAlerts == &#34;true&#34;){SDTFilter = &#34;false&#34;}
+ 
+ def propfilter = &#34;,acked:\&#34;${ACKFilter}\&#34;,sdted:\&#34;${SDTFilter}\&#34;,instanceName~\&#34;${datasourceFilter.replace(&#34;,&#34;, &#34;|&#34;)}\&#34;&#34;
+ 
+ def filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;:${startEpoch}&#34; + propfilter
+ def fields = &#34;severity,monitorObjectId,monitorObjectName,id,startEpoch,endEpoch,rule,acked,sdted,chain&#34;
+ 
+ def alerts
+ def alertSize
+ def maxQuery = 0
+ def scriptCache
+ def cacheTimeout = 3600 // 1 hour
+ 
+ def cacheHit = 0
+ def previousCacheSize = 0
+ def currentCacheSize = 0
+ def addedToCache = 0
+ def removedFromCache = 0
+ def resourcesInCache = 0
+ def resourcesCacheHit = 0
+ 
+ def elapsedTime
+ def previousRun
+ 
+ def devices
+ 
+ try{
+ 
+     scriptCache = this.class.classLoader.loadClass(&#34;com.santaba.agent.util.script.ScriptCache&#34;).getCache();
+     
+     String resourceCache = scriptCache.get(&#34;DeviceAlertStats-ResourceCache&#34;);
+     String resourceCacheExp = scriptCache.get(&#34;DeviceAlertStats-ResourceCache-Expiration&#34;);
+     //scriptCache.remove(&#34;DeviceAlertStats-ResourceCache&#34;)
+     //scriptCache.remove(&#34;DeviceAlertStats-ResourceCache-Expiration&#34;)
+     
+     if(resourceCacheExp){
+         previousRun = Long.valueOf(resourceCacheExp)
+         elapsedTime = endEpoch - previousRun
+     }
+ 
+     if(resourceCache == null || elapsedTime &#62;= 3000){
+         /*Grab resource*/
+         devices = apiGetManyV2(portalName, apiId, apiKey, &#34;/device/devices&#34;, proxyInfo, [&#39;fields&#39;:&#34;id,name,displayName,deviceType&#34;,&#39;size&#39;:1000,&#39;sort&#39;:&#34;displayName&#34;])
+         if(devices){
+             devicesJson = new JsonBuilder( devices ).toPrettyString()
+             devicesExp = Long.toString(endEpoch)
+             scriptCache.set(&#34;DeviceAlertStats-ResourceCache&#34;,devicesJson,cacheTimeout * 1000);
+             scriptCache.set(&#34;DeviceAlertStats-ResourceCache-Expiration&#34;,devicesExp,cacheTimeout * 1000);
+             resourcesInCache = devices.size()
+         }
+     }
+     else{
+         devices = new JsonSlurper().parseText(resourceCache)
+         resourcesInCache = devices.size()
+         resourcesCacheHit = 1
+     }
+ 
+     String alertsCacheOptions = scriptCache.get(&#34;DeviceAlertStats-AlertsCache-Options&#34;);
+ 
+     if(alertsCacheOptions){
+        def alertCacheObject = new JsonSlurper().parseText(alertsCacheOptions)
+        if((alertCacheObject.excludeUnACKedAlerts.toString() != excludeUnACKedAlerts) || (alertCacheObject.excludeSDTedAlerts.toString() != excludeSDTedAlerts) || (alertCacheObject.datasourceFilter.toString() != datasourceFilter) || (alertCacheObject.lookbackPeriod.toString() != lookbackPeriod)){
+            scriptCache.remove(&#34;DeviceAlertStats-AlertsCache&#34;)
 
-String apiId   = hostProps.get(&#34;lmaccess.id&#34;)  ?: hostProps.get(&#34;logicmonitor.access.id&#34;)
-String apiKey  = hostProps.get(&#34;lmaccess.key&#34;) ?: hostProps.get(&#34;logicmonitor.access.key&#34;)
-def lookbackPeriod = hostProps.get(&#34;alert.analysis.period&#34;) ?: hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;7&#34; //Default to 7 day(s)
-
-def excludeUnACKedAlerts = hostProps.get(&#34;alert.analysis.excludeUnACKedAlerts&#34;) ?: hostProps.get(&#34;alert.duration.excludeUnACKedAlerts&#34;) ?: &#34;false&#34; //Default to false
-def excludeSDTedAlerts = hostProps.get(&#34;alert.analysis.excludeSDTedAlerts&#34;) ?: hostProps.get(&#34;alert.duration.excludeSDTedAlerts&#34;) ?: &#34;false&#34; //Default to false
-def datasourceFilter = hostProps.get(&#34;alert.analysis.datasourceList&#34;) ?: hostProps.get(&#34;alert.duration.datasourceList&#34;) ?: &#34;*&#34; //Default to include all datasources
-
-def portalName = hostProps.get(&#34;lmaccount&#34;)    ?: Settings.getSetting(Settings.AGENT_COMPANY)
-Map proxyInfo  = getProxyInfo()
-
-/*Calculate start and end date for alert query*/
-int timePeriod = 24 * lookbackPeriod.toInteger() //hours for rolling average
-Date now = new Date()
-long endEpoch = now.getTime() / 1000
-long startEpoch = endEpoch - (timePeriod*3600)
-
-def SDTFilter = &#34;*&#34;
-def ACKFilter = &#34;*&#34;
-
-if(excludeUnACKedAlerts == &#34;false&#34;){ACKFilter = &#34;*&#34;}
-if(excludeSDTedAlerts == &#34;true&#34;){SDTFilter = &#34;false&#34;}
-
-def propfilter = &#34;,acked:\&#34;${ACKFilter}\&#34;,sdted:\&#34;${SDTFilter}\&#34;,instanceName~\&#34;${datasourceFilter.replace(&#34;,&#34;, &#34;|&#34;)}\&#34;&#34;
-
-def filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;:${startEpoch}&#34; + propfilter
-def fields = &#34;severity,monitorObjectId,monitorObjectName,id,startEpoch,endEpoch,rule,acked,sdted,chain&#34;
-
-def alerts
-def alertSize
-def maxQuery = 0
-def scriptCache
-def cacheTimeout = 3600 // 1 hour
-
-def cacheHit = 0
-def previousCacheSize = 0
-def currentCacheSize = 0
-def addedToCache = 0
-def removedFromCache = 0
-def resourcesInCache = 0
-def resourcesCacheHit = 0
-
-def devices
-
-try{
-
-    scriptCache = this.class.classLoader.loadClass(&#34;com.santaba.agent.util.script.ScriptCache&#34;).getCache();
-    
-    String resourceCache = scriptCache.get(&#34;DeviceAlertStats-ResourceCache&#34;);
-    if(resourceCache == null){
-        /*Grab resource*/
-        devices = apiGetManyV2(portalName, apiId, apiKey, &#34;/device/devices&#34;, proxyInfo, [&#39;fields&#39;:&#34;id,name,displayName,deviceType&#34;,&#39;size&#39;:1000,&#39;sort&#39;:&#34;displayName&#34;])
-        if(devices){
-            devicesJson = new JsonBuilder( devices ).toPrettyString()
-            scriptCache.set(&#34;DeviceAlertStats-ResourceCache&#34;,devicesJson,cacheTimeout * 1000);
-            resourcesInCache = devices.size()
+            def alertOptions = new JsonSlurper()
+            def alertObject = &#34;{\&#34;excludeUnACKedAlerts\&#34;: ${excludeUnACKedAlerts},\&#34;excludeSDTedAlerts\&#34;: ${excludeSDTedAlerts},\&#34;datasourceFilter\&#34;: \&#34;${datasourceFilter}\&#34;,\&#34;lookbackPeriod\&#34;: ${lookbackPeriod}}&#34;
+            scriptCache.set(&#34;DeviceAlertStats-AlertsCache-Options&#34;,alertObject,cacheTimeout * 1000);
         }
-    }
-    else{
-        devices = new JsonSlurper().parseText(resourceCache)
-        resourcesInCache = devices.size()
-        resourcesCacheHit = 1
-    }
-    
-    //scriptCache.remove(&#34;DeviceAlertStats-AlertsCache&#34;)
-    String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
-    if(alertsCache == null){
-        /*Grab alerts*/
-        alerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
-        alertSize = alerts.size()
-
-        /*We reached 10000 view limit, perform another search starting with the oldest returned alert*/
-        while(alertSize == 10000 &#38;&#38; maxQuery &#60; 5){
-            def lastEpoch = alerts.endEpoch.max()
-            filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
-            def nextAlerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
-            alertSize = nextAlerts.size()
-            alerts.addAll(nextAlerts)
-            maxQuery++
-        }
-        /*If we have alerts store them in script cache*/
-        if(alerts){
-            currentCacheSize = alerts.size()
-            addedToCache = alerts.size()
-            alertsJson = new JsonBuilder( alerts ).toPrettyString()
-            scriptCache.set(&#34;DeviceAlertStats-AlertsCache&#34;,alertsJson,cacheTimeout * 1000);
-        }
-    }
-    else{
-        cacheHit = 1
-        cachedAlerts = new JsonSlurper().parseText(alertsCache)
-        previousCacheSize = cachedAlerts.size()
-        def lastEpoch = cachedAlerts.endEpoch.max()
-
-        /*Purge old alerts that fall outside scope of duration period*/
-        cachedAlerts.removeAll { it.endEpoch &#60;= startEpoch }
-        removedFromCache = cachedAlerts.size()
-
-        /*Grab latest closed alerts*/
-        filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
-        alerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
-        alertSize = alerts.size()
-
-        /*We reached 10000 view limit, perform another search starting with the oldest returned alert*/
-        while(alertSize == 10000 &#38;&#38; maxQuery &#60; 5){
-            lastEpoch = alerts.endEpoch.max()
-            filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
-            def nextAlerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
-            alertSize = nextAlerts.size()
-            alerts.addAll(nextAlerts)
-            maxQuery++
-        }
-        /*If we have alerts store them in script cache*/
-        addedToCache = alerts.size()
-        alerts.addAll(cachedAlerts)
-        alertsJson = new JsonBuilder( alerts ).toPrettyString()
-        scriptCache.set(&#34;DeviceAlertStats-AlertsCache&#34;,alertsJson,cacheTimeout * 1000);
-        currentCacheSize = alerts.size()
-        removedFromCache = previousCacheSize - removedFromCache
-    }
-
-    println &#34;alertCacheHit=${cacheHit}&#34;
-    println &#34;currentCacheSize=${currentCacheSize}&#34;
-    println &#34;previousCacheSize=${previousCacheSize}&#34;
-    println &#34;removedFromCache=${removedFromCache}&#34;
-    println &#34;addedToCache=${addedToCache}&#34;
-    println &#34;lookbackPeriod=${lookbackPeriod}&#34;
-    println &#34;resourcesInCache=${resourcesInCache}&#34;
-    println &#34;resourcesCacheHit=${resourcesCacheHit}&#34;
-}
-catch (Exception ex) {
-    println ex
-    return -1
-}
-
-
-/* Generate auth for API calls. */
-static String generateAuth(id, key, path) {
-    Long epoch_time = System.currentTimeMillis()
-    Mac hmac = Mac.getInstance(&#34;HmacSHA256&#34;)
-    hmac.init(new SecretKeySpec(key.getBytes(), &#34;HmacSHA256&#34;))
-    def signature = Hex.encodeHexString(hmac.doFinal(&#34;GET${epoch_time}${path}&#34;.getBytes())).bytes.encodeBase64()
-
-    return &#34;LMv1 ${id}:${signature}:${epoch_time}&#34;
-}
-
-/* Paginated GET method. Returns a list of objects. */
-List apiGetManyV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
-
-    def pageSize = args.get(&#39;size&#39;, 1000) // Default the page size to 1000 if not specified.
-    List items = []
-
-    args[&#39;size&#39;] = pageSize
-
-    def pageCount = 0
-    while (true) {
-        pageCount += 1
-
-        // Updated the args
-        args[&#39;size&#39;] = pageSize
-        args[&#39;offset&#39;] = items.size()
-
-        def response = apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
-        if (response.get(&#34;errmsg&#34;, &#34;OK&#34;) != &#34;OK&#34;) {
-            throw new Exception(&#34;Santaba returned errormsg: ${response?.errmsg}&#34;)
-        }
-        items.addAll(response.items)
-
-        // If we recieved less than we asked for it means we are done
-        if (response.items.size() &#60; pageSize) break
-    }
-    return items
-}
-
-/* Simple GET, returns a parsed json payload. No processing. */
-def apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
-    def request = rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
-    if (request.getResponseCode() == 200) {
-        def payload = new JsonSlurper().parseText(request.content.text)
-        return payload
-    }
-    else {
-        throw new Exception(&#34;Server return HTTP code ${request.getResponseCode()}&#34;)
-    }
-}
-
-
-/* Raw GET method. */
-def rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
-    def auth = generateAuth(apiId, apiKey, endPoint)
-    def headers = [&#34;Authorization&#34;: auth, &#34;Content-Type&#34;: &#34;application/json&#34;, &#34;X-Version&#34;:&#34;3&#34;]
-    def url = &#34;https://${portalName}.logicmonitor.com/santaba/rest${endPoint}&#34;
-    if (args) {
-        def encodedArgs = []
-        args.each{ k,v -&#62; 
-            if(k == &#34;filter&#34; || k == &#34;fields&#34; || k == &#34;sort&#34;){
-                encodedArgs &#60;&#60; &#34;${k}=${v.toString()}&#34;
-            }
-            else{
-                encodedArgs &#60;&#60; &#34;${k}=${java.net.URLEncoder.encode(v.toString(), &#34;UTF-8&#34;)}&#34;
-            }
-        }
-        url += &#34;?${encodedArgs.join(&#39;&#38;&#39;)}&#34;
-    }
-
-    def request
-    if (proxyInfo.enabled) {
-        request = url.toURL().openConnection(proxyInfo.proxy)
-    }
-    else {
-        request = url.toURL().openConnection()
-    }
-    request.setRequestMethod(&#34;GET&#34;)
-    request.setDoOutput(true)
-    headers.each{ k,v -&#62;
-        request.addRequestProperty(k, v)
-    }
-
-    return request
-}
-
-/**
-* Get collector proxy settings
-* @return Map with proxy settings, empty map if proxy not set.
-*/
-Map getProxyInfo() {
-    // Each property must be evaluated for null to determine whether to use collected value or fallback value
-    // Elvis operator does not play nice with booleans
-    // default to true in absence of property to use collectorProxy as determinant
-    Boolean deviceProxy = hostProps.get(&#34;proxy.enable&#34;)?.toBoolean()
-    deviceProxy = (deviceProxy != null) ? deviceProxy : true  
-    // if settings are not present, value should be false
-    Boolean collectorProxy = Settings.getSetting(&#34;proxy.enable&#34;)?.toBoolean()
-    collectorProxy = (collectorProxy != null) ? collectorProxy : false  
-
-    Map proxyInfo = [:]
-    
-    if (deviceProxy &#38;&#38; collectorProxy) {
-        proxyInfo = [
-            enabled : true,
-            host : hostProps.get(&#34;proxy.host&#34;) ?: Settings.getSetting(&#34;proxy.host&#34;),
-            port : hostProps.get(&#34;proxy.port&#34;) ?: Settings.getSetting(&#34;proxy.port&#34;) ?: 3128,
-            user : Settings.getSetting(&#34;proxy.user&#34;),
-            pass : Settings.getSetting(&#34;proxy.pass&#34;)
-        ]
-    
-        proxyInfo[&#34;proxy&#34;] = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyInfo.host, proxyInfo.port.toInteger()))
-    }
-
-    return proxyInfo
-}</value>
+     }
+     else{
+        def alertOptions = new JsonSlurper()
+        def alertObject = &#34;{\&#34;excludeUnACKedAlerts\&#34;: ${excludeUnACKedAlerts},\&#34;excludeSDTedAlerts\&#34;: ${excludeSDTedAlerts},\&#34;datasourceFilter\&#34;: \&#34;${datasourceFilter}\&#34;,\&#34;lookbackPeriod\&#34;: ${lookbackPeriod}}&#34;
+        scriptCache.set(&#34;DeviceAlertStats-AlertsCache-Options&#34;,alertObject,cacheTimeout * 1000);
+     }
+     
+     //scriptCache.remove(&#34;DeviceAlertStats-AlertsCache&#34;)
+     String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
+ 
+     if(alertsCache == null){
+         /*Grab alerts*/
+         alerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
+         alertSize = alerts.size()
+ 
+         /*We reached 10000 view limit, perform another search starting with the oldest returned alert*/
+         while(alertSize == 10000 &#38;&#38; maxQuery &#60; 5){
+             def lastEpoch = alerts.endEpoch.max()
+             filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
+             def nextAlerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
+             alertSize = nextAlerts.size()
+             alerts.addAll(nextAlerts)
+             maxQuery++
+         }
+         /*If we have alerts store them in script cache*/
+         if(alerts){
+             currentCacheSize = alerts.size()
+             addedToCache = alerts.size()
+             alertsJson = new JsonBuilder( alerts ).toPrettyString()
+             scriptCache.set(&#34;DeviceAlertStats-AlertsCache&#34;,alertsJson,cacheTimeout * 1000);
+         }
+     }
+     else{
+         cacheHit = 1
+         cachedAlerts = new JsonSlurper().parseText(alertsCache)
+         previousCacheSize = cachedAlerts.size()
+         def lastEpoch = cachedAlerts.endEpoch.max()
+ 
+         /*Purge old alerts that fall outside scope of duration period*/
+         cachedAlerts.removeAll { it.endEpoch &#60;= startEpoch }
+         removedFromCache = cachedAlerts.size()
+ 
+         /*Grab latest closed alerts*/
+         filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
+         alerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
+         alertSize = alerts.size()
+ 
+         /*We reached 10000 view limit, perform another search starting with the oldest returned alert*/
+         while(alertSize == 10000 &#38;&#38; maxQuery &#60; 5){
+             lastEpoch = alerts.endEpoch.max()
+             filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
+             def nextAlerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
+             alertSize = nextAlerts.size()
+             alerts.addAll(nextAlerts)
+             maxQuery++
+         }
+         /*If we have alerts store them in script cache*/
+         addedToCache = alerts.size()
+         alerts.addAll(cachedAlerts)
+         alertsJson = new JsonBuilder( alerts ).toPrettyString()
+         scriptCache.set(&#34;DeviceAlertStats-AlertsCache&#34;,alertsJson,cacheTimeout * 1000);
+         currentCacheSize = alerts.size()
+         removedFromCache = previousCacheSize - removedFromCache
+     }
+ 
+     println &#34;alertCacheHit=${cacheHit}&#34;
+     println &#34;currentCacheSize=${currentCacheSize}&#34;
+     println &#34;previousCacheSize=${previousCacheSize}&#34;
+     println &#34;removedFromCache=${removedFromCache}&#34;
+     println &#34;addedToCache=${addedToCache}&#34;
+     println &#34;lookbackPeriod=${lookbackPeriod}&#34;
+     println &#34;resourcesInCache=${resourcesInCache}&#34;
+     println &#34;resourcesCacheHit=${resourcesCacheHit}&#34;
+ }
+ catch (Exception ex) {
+     println ex
+     return -1
+ }
+ 
+ 
+ /* Generate auth for API calls. */
+ static String generateAuth(id, key, path) {
+     Long epoch_time = System.currentTimeMillis()
+     Mac hmac = Mac.getInstance(&#34;HmacSHA256&#34;)
+     hmac.init(new SecretKeySpec(key.getBytes(), &#34;HmacSHA256&#34;))
+     def signature = Hex.encodeHexString(hmac.doFinal(&#34;GET${epoch_time}${path}&#34;.getBytes())).bytes.encodeBase64()
+ 
+     return &#34;LMv1 ${id}:${signature}:${epoch_time}&#34;
+ }
+ 
+ /* Paginated GET method. Returns a list of objects. */
+ List apiGetManyV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+ 
+     def pageSize = args.get(&#39;size&#39;, 1000) // Default the page size to 1000 if not specified.
+     List items = []
+ 
+     args[&#39;size&#39;] = pageSize
+ 
+     def pageCount = 0
+     while (true) {
+         pageCount += 1
+ 
+         // Updated the args
+         args[&#39;size&#39;] = pageSize
+         args[&#39;offset&#39;] = items.size()
+ 
+         def response = apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
+         if (response.get(&#34;errmsg&#34;, &#34;OK&#34;) != &#34;OK&#34;) {
+             throw new Exception(&#34;Santaba returned errormsg: ${response?.errmsg}&#34;)
+         }
+         items.addAll(response.items)
+ 
+         // If we recieved less than we asked for it means we are done
+         if (response.items.size() &#60; pageSize) break
+     }
+     return items
+ }
+ 
+ /* Simple GET, returns a parsed json payload. No processing. */
+ def apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+     def request = rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
+     if (request.getResponseCode() == 200) {
+         def payload = new JsonSlurper().parseText(request.content.text)
+         return payload
+     }
+     else {
+         throw new Exception(&#34;Server return HTTP code ${request.getResponseCode()}&#34;)
+     }
+ }
+ 
+ 
+ /* Raw GET method. */
+ def rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+     def auth = generateAuth(apiId, apiKey, endPoint)
+     def headers = [&#34;Authorization&#34;: auth, &#34;Content-Type&#34;: &#34;application/json&#34;, &#34;X-Version&#34;:&#34;3&#34;]
+     def url = &#34;https://${portalName}.logicmonitor.com/santaba/rest${endPoint}&#34;
+     if (args) {
+         def encodedArgs = []
+         args.each{ k,v -&#62; 
+             if(k == &#34;filter&#34; || k == &#34;fields&#34; || k == &#34;sort&#34;){
+                 encodedArgs &#60;&#60; &#34;${k}=${v.toString()}&#34;
+             }
+             else{
+                 encodedArgs &#60;&#60; &#34;${k}=${java.net.URLEncoder.encode(v.toString(), &#34;UTF-8&#34;)}&#34;
+             }
+         }
+         url += &#34;?${encodedArgs.join(&#39;&#38;&#39;)}&#34;
+     }
+ 
+     def request
+     if (proxyInfo.enabled) {
+         request = url.toURL().openConnection(proxyInfo.proxy)
+     }
+     else {
+         request = url.toURL().openConnection()
+     }
+     request.setRequestMethod(&#34;GET&#34;)
+     request.setDoOutput(true)
+     headers.each{ k,v -&#62;
+         request.addRequestProperty(k, v)
+     }
+ 
+     return request
+ }
+ 
+ /**
+ * Get collector proxy settings
+ * @return Map with proxy settings, empty map if proxy not set.
+ */
+ Map getProxyInfo() {
+     // Each property must be evaluated for null to determine whether to use collected value or fallback value
+     // Elvis operator does not play nice with booleans
+     // default to true in absence of property to use collectorProxy as determinant
+     Boolean deviceProxy = hostProps.get(&#34;proxy.enable&#34;)?.toBoolean()
+     deviceProxy = (deviceProxy != null) ? deviceProxy : true  
+     // if settings are not present, value should be false
+     Boolean collectorProxy = Settings.getSetting(&#34;proxy.enable&#34;)?.toBoolean()
+     collectorProxy = (collectorProxy != null) ? collectorProxy : false  
+ 
+     Map proxyInfo = [:]
+     
+     if (deviceProxy &#38;&#38; collectorProxy) {
+         proxyInfo = [
+             enabled : true,
+             host : hostProps.get(&#34;proxy.host&#34;) ?: Settings.getSetting(&#34;proxy.host&#34;),
+             port : hostProps.get(&#34;proxy.port&#34;) ?: Settings.getSetting(&#34;proxy.port&#34;) ?: 3128,
+             user : Settings.getSetting(&#34;proxy.user&#34;),
+             pass : Settings.getSetting(&#34;proxy.pass&#34;)
+         ]
+     
+         proxyInfo[&#34;proxy&#34;] = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyInfo.host, proxyInfo.port.toInteger()))
+     }
+ 
+     return proxyInfo
+ }</value>
             <comment></comment>
         </attribute>
         <attribute>
