@@ -14,7 +14,7 @@
       "value": "*"
     }
   ],
-  "name": "Alert Duration Overview",
+  "name": "Alert Analysis Overview",
   "description": "",
   "overwriteGroupFields": false,
   "widgetsConfigVersion": 2,
