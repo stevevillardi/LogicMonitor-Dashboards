@@ -7,7 +7,7 @@
   <kmsKeyId></kmsKeyId>
   <pkdsRegion></pkdsRegion>
     <entry type="predatasource">
-        <version>1700024027</version>
+        <version>1701882538</version>
         <name>LogicMonitor_Portal_Alert_Statistics_Cache</name>
         <displayedas>LogicMonitor Portal Alert Statistics (Cache)</displayedas>
         <description>Populates collector script cache with cleared alert metrics and resources for use with alert statistics modules.</description>
@@ -33,6 +33,19 @@
         <technology></technology>
         <adlist><![CDATA[{"agdmethod":"none","agdparams":"","locatorId":"","id":0,"filters":[],"params":{},"version":""}]]></adlist>
         <schemaVersion>2</schemaVersion>
+    <integrationMetadata>
+        <integrationVersion>1.1.0</integrationVersion>
+        <integrationAuthorCompanyUuid>1c0ca6ae-b3a2-4a08-9809-5935c90e4a1d</integrationAuthorCompanyUuid>
+        <integrationLineageId>1KkJeqFRRXu9obqHRMzTmA</integrationLineageId>
+        <integrationChecksum>dfe7d9cd2e8278d686f70dc2ef1777a2</integrationChecksum>
+        <integrationAuthorNamespace>lmstevenvillardi</integrationAuthorNamespace>
+        <integrationId>49dbe789-73e1-45f8-9a95-bf13a873fb56</integrationId>
+        <integrationLocator>HWD2XF</integrationLocator>
+        <integrationName></integrationName>
+        <integrationStatus>Security Review</integrationStatus>
+        <integrationPublishedAtMS>1701882572090</integrationPublishedAtMS>
+        <integrationIsPrivate>false</integrationIsPrivate>
+    </integrationMetadata>
         <dataSourceType>1</dataSourceType>
         <attributes>
         <attribute>
@@ -63,6 +76,9 @@
  def excludeSDTedAlerts = hostProps.get(&#34;alert.analysis.excludeSDTedAlerts&#34;) ?: hostProps.get(&#34;alert.duration.excludeSDTedAlerts&#34;) ?: &#34;false&#34; //Default to false
  def datasourceFilter = hostProps.get(&#34;alert.analysis.datasourceList&#34;) ?: hostProps.get(&#34;alert.duration.datasourceList&#34;) ?: &#34;*&#34; //Default to include all datasources
  
+ def additionalGroupIds = hostProps.get(&#34;alert.analysis.includeGroupIds&#34;) ?: hostProps.get(&#34;alert.duration.includeGroupIds&#34;) ?: null //Comma seperated list of group ids to include in discovery
+
+ 
  def portalName = hostProps.get(&#34;lmaccount&#34;)    ?: Settings.getSetting(Settings.AGENT_COMPANY)
  Map proxyInfo  = getProxyInfo()
  
@@ -81,7 +97,7 @@
  def propfilter = &#34;,acked:\&#34;${ACKFilter}\&#34;,sdted:\&#34;${SDTFilter}\&#34;,instanceName~\&#34;${datasourceFilter.replace(&#34;,&#34;, &#34;|&#34;)}\&#34;&#34;
  
  def filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;:${startEpoch}&#34; + propfilter
- def fields = &#34;severity,monitorObjectId,monitorObjectName,id,startEpoch,endEpoch,rule,acked,sdted,chain&#34;
+ def fields = &#34;severity,monitorObjectId,monitorObjectGroups,id,startEpoch,endEpoch,acked,sdted&#34;
  
  def alerts
  def alertSize
@@ -96,6 +112,9 @@
  def removedFromCache = 0
  def resourcesInCache = 0
  def resourcesCacheHit = 0
+
+ def deviceGroupsInCache = 0
+ def deviceGroupsCacheHit = 0
  
  def elapsedTime
  def previousRun
@@ -105,11 +124,51 @@
  try{
  
      scriptCache = this.class.classLoader.loadClass(&#34;com.santaba.agent.util.script.ScriptCache&#34;).getCache();
+
+     /*Collect device groups*/
+     //scriptCache.remove(&#34;DeviceAlertStats-deviceGroupCache&#34;)
+     //scriptCache.remove(&#34;DeviceAlertStats-deviceGroupCache-Expiration&#34;)
+     String deviceGroupCache = scriptCache.get(&#34;DeviceAlertStats-deviceGroupCache&#34;);
+     String deviceGroupCacheExp = scriptCache.get(&#34;DeviceAlertStats-deviceGroupCache-Expiration&#34;);
+
+    if(deviceGroupCacheExp){
+        previousRun = Long.valueOf(deviceGroupCacheExp)
+        elapsedTime = endEpoch - previousRun
+     }
+
+     if(deviceGroupCache == null || elapsedTime &#62;= 3000){
+
+         /*Grab device by type*/
+         devicesByTypeId = (apiGetManyV2(portalName, apiId, apiKey, &#34;/device/groups&#34;, proxyInfo, [&#39;fields&#39;:&#34;id&#34;,&#39;filter&#39;:&#34;name%3A%22Devices%20by%20Type%22&#34;,&#39;size&#39;:1000]))[0].id
+
+         deviceGroups = apiGetManyV2(portalName, apiId, apiKey, &#34;/device/groups/${devicesByTypeId}/groups&#34;, proxyInfo, [&#39;fields&#39;:&#34;id,name,fullPath&#34;,&#39;size&#39;:1000,&#39;sort&#39;:&#34;displayName&#34;])
+
+        if(additionalGroupIds){
+            additionalGroupIds.split(&#39;,&#39;).each { group -&#62;
+                additionalGroup = apiGetV2(portalName, apiId, apiKey, &#34;/device/groups/${group}&#34;, proxyInfo, [&#39;fields&#39;:&#34;id,name,fullPath&#34;])
+                deviceGroups.add(additionalGroup)
+            }
+        }
+
+         if(deviceGroups){
+             deviceGroupsJson = new JsonBuilder( deviceGroups ).toPrettyString()
+             deviceGroupsExp = Long.toString(endEpoch)
+             scriptCache.set(&#34;DeviceAlertStats-deviceGroupCache&#34;,deviceGroupsJson,cacheTimeout * 1000);
+             scriptCache.set(&#34;DeviceAlertStats-deviceGroupCache-Expiration&#34;,deviceGroupsExp,cacheTimeout * 1000);
+             deviceGroupsInCache = deviceGroups.size()
+         }
+     }
+     else{
+         deviceGroups = new JsonSlurper().parseText(deviceGroupCache)
+         deviceGroupsInCache = deviceGroups.size()
+         deviceGroupsCacheHit = 1
+     }
      
-     String resourceCache = scriptCache.get(&#34;DeviceAlertStats-ResourceCache&#34;);
-     String resourceCacheExp = scriptCache.get(&#34;DeviceAlertStats-ResourceCache-Expiration&#34;);
+     /*Collect resources*/
      //scriptCache.remove(&#34;DeviceAlertStats-ResourceCache&#34;)
      //scriptCache.remove(&#34;DeviceAlertStats-ResourceCache-Expiration&#34;)
+     String resourceCache = scriptCache.get(&#34;DeviceAlertStats-ResourceCache&#34;);
+     String resourceCacheExp = scriptCache.get(&#34;DeviceAlertStats-ResourceCache-Expiration&#34;);
      
      if(resourceCacheExp){
          previousRun = Long.valueOf(resourceCacheExp)
@@ -133,6 +192,7 @@
          resourcesCacheHit = 1
      }
  
+    /*Check if options changed, if so purge cache and rebuilt*/
      String alertsCacheOptions = scriptCache.get(&#34;DeviceAlertStats-AlertsCache-Options&#34;);
  
      if(alertsCacheOptions){
@@ -151,6 +211,7 @@
         scriptCache.set(&#34;DeviceAlertStats-AlertsCache-Options&#34;,alertObject,cacheTimeout * 1000);
      }
      
+     /*Collect alerts*/
      //scriptCache.remove(&#34;DeviceAlertStats-AlertsCache&#34;)
      String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
  
@@ -158,6 +219,8 @@
          /*Grab alerts*/
          alerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
          alertSize = alerts.size()
+
+         alerts = formatGroupIds(alerts)
  
          /*We reached 10000 view limit, perform another search starting with the oldest returned alert*/
          while(alertSize == 10000 &#38;&#38; maxQuery &#60; 5){
@@ -165,6 +228,9 @@
              filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
              def nextAlerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
              alertSize = nextAlerts.size()
+
+             nextAlerts = formatGroupIds(nextAlerts)
+
              alerts.addAll(nextAlerts)
              maxQuery++
          }
@@ -190,13 +256,18 @@
          filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
          alerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
          alertSize = alerts.size()
- 
+
+         alerts = formatGroupIds(alerts)
+
          /*We reached 10000 view limit, perform another search starting with the oldest returned alert*/
          while(alertSize == 10000 &#38;&#38; maxQuery &#60; 5){
              lastEpoch = alerts.endEpoch.max()
              filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
              def nextAlerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
              alertSize = nextAlerts.size()
+
+             nextAlerts = formatGroupIds(nextAlerts)
+
              alerts.addAll(nextAlerts)
              maxQuery++
          }
@@ -217,6 +288,8 @@
      println &#34;lookbackPeriod=${lookbackPeriod}&#34;
      println &#34;resourcesInCache=${resourcesInCache}&#34;
      println &#34;resourcesCacheHit=${resourcesCacheHit}&#34;
+     println &#34;deviceGroupsInCache=${deviceGroupsInCache}&#34;
+     println &#34;deviceGroupsCacheHit=${deviceGroupsCacheHit}&#34;
  }
  catch (Exception ex) {
      println ex
@@ -261,6 +334,21 @@
      }
      return items
  }
+
+def formatGroupIds(alerts){
+    alerts.each{alert -&#62;
+        alert.monitorObjectGroups.each{group -&#62;
+            if(alert.groupIds){
+                alert.groupIds = &#34;${alert.monitorObjectGroupIds},${(group.findAll {it.key == &#39;id&#39;}).id}&#34;
+            }
+            else{
+                alert.groupIds = &#34;${(group.findAll {it.key == &#39;id&#39;}).id}&#34;
+            }
+        }
+        alert.remove(&#39;monitorObjectGroups&#39;)
+    }
+    return alerts
+}
  
  /* Simple GET, returns a parsed json payload. No processing. */
  def apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
@@ -640,6 +728,67 @@
             <alertTransitionIval>0</alertTransitionIval>
             <alertClearTransitionIval>0</alertClearTransitionIval>
         </datapoint>
+        <datapoint>
+            <name>deviceGroupsCacheHit</name>
+            <originId>5QlidqYqTTCNlEO3yg4Pmw</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>deviceGroupsCacheHit</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Wether or not a script deviceGroup cache was found during polling.
+
+0 = no script cache found
+1 = script cache found</description>
+            <maxvalue>1</maxvalue>
+            <minvalue>0</minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>deviceGroupsInCache</name>
+            <originId>Jwd8gB6GShOmjAbB3rdnBQ</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>deviceGroupsInCache</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Number of device groups in script cache</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
         </datapoints>
         <graphs>
         <graph>
@@ -750,6 +899,36 @@
                 <legend>alertsCacheHit</legend>
                 <color>aqua</color>
                 <datapointname>alertsCacheHit</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            </graphdatas>
+        </graph>
+        <graph>
+            <name>Device Group Cache Details</name>
+            <title>Device Group Cache Details</title>
+            <originId></originId>            <verticallabel># of groups</verticallabel>
+            <rigid>false</rigid>
+            <maxvalue>NaN</maxvalue>
+            <minvalue>-1.0</minvalue>
+            <displayprio>1</displayprio>
+            <timescale>1day</timescale>
+            <base1024>false</base1024>
+            <graphdatapoints>
+        <graphdatapoint>
+            <name>deviceGroupsInCache</name>
+            <datapointname>deviceGroupsInCache</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+            </graphdatapoints>
+            <graphvirtualdatapoints>
+            </graphvirtualdatapoints>
+            <graphdatas>
+            <graphdata>
+                <type>1</type>
+                <legend>deviceGroupsInCache</legend>
+                <color>orange2</color>
+                <datapointname>deviceGroupsInCache</datapointname>
                 <isvirtualdatapoint>false</isvirtualdatapoint>
             </graphdata>
             </graphdatas>
