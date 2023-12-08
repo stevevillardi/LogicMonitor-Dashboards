@@ -4,8 +4,10 @@
   <status>200</status>
   <errmsg>OK</errmsg>
   <interval>0</interval>
+  <kmsKeyId></kmsKeyId>
+  <pkdsRegion></pkdsRegion>
     <entry type="predatasource">
-        <version>1698091533</version>
+        <version>1702006852</version>
         <name>LogicMonitor_Device_Alert_Statistics</name>
         <displayedas>LogicMonitor Device Alert Statistics</displayedas>
         <description>Tracks alert duration average over a rolling period of time.</description>
@@ -60,8 +62,8 @@ if(devices){
         println &#34;${device.id}##${device.displayName}######auto.device.type=${deviceType.getOrDefault(device.deviceType,&#34;Other Resources&#34;)}&#34;
     }
 }
-return 0
-</wildcardgroovyscript>
+
+return 0</wildcardgroovyscript>
         <wildcardschedule>60</wildcardschedule>
         <wildcarddisable>false</wildcarddisable>
         <wildcarddeleteinactive>false</wildcarddeleteinactive>
@@ -70,8 +72,21 @@ return 0
         <group></group>
         <tags></tags>
         <technology>User alert.analysis.period to define the rolling time period used in alert duration calculation(in days).</technology>
-        <adlist><![CDATA[{"agdmethod":"ilp","method":"ad_script","agdparams":"auto.device.type","id":0,"filters":[],"params":{"type":"embeded","groovyscript":"/*******************************************************************************\n * © 2007-2023 - LogicMonitor, Inc. All rights reserved.\n ******************************************************************************/\nimport groovy.json.*\n\ndef devices\n\nMap deviceType = [\n    0: \"Standard Resources\",\n    2: \"AWS Resources\",\n    4: \"Azure Resources\",\n    6: \"Services\",\n    7: \"GCP Resources\",\n    8: \"K8s Resources\",\n    10: \"SaaS Resources\",\n    11: \"Synthetics\"\n]\n\ntry {\n    scriptCache = this.class.classLoader.loadClass(\"com.santaba.agent.util.script.ScriptCache\").getCache();\n    //scriptCache.remove(\"DeviceAlertStats-ResourceCache\")\n    String resourceCache = scriptCache.get(\"DeviceAlertStats-ResourceCache\");\n    if(resourceCache == null){\n        return -1\n    }\n    else{\n        devices = new JsonSlurper().parseText(resourceCache)\n    }\n} \ncatch (Exception ex) {\n\tprintln ex\n    return -1\n}\n\nif(devices){\n    devices.each { device -> \n        \n        println \"${device.id}##${device.displayName}######auto.device.type=${deviceType.getOrDefault(device.deviceType,\"Other Resources\")}\"\n    }\n}\nreturn 0\n"}}]]></adlist>
+        <adlist><![CDATA[{"agdmethod":"ilp","method":"ad_script","agdparams":"auto.device.type","locatorId":"","id":0,"filters":[],"params":{"type":"embeded","groovyscript":"/*******************************************************************************\n * © 2007-2023 - LogicMonitor, Inc. All rights reserved.\n ******************************************************************************/\nimport groovy.json.*\n\ndef devices\n\nMap deviceType = [\n    0: \"Standard Resources\",\n    2: \"AWS Resources\",\n    4: \"Azure Resources\",\n    6: \"Services\",\n    7: \"GCP Resources\",\n    8: \"K8s Resources\",\n    10: \"SaaS Resources\",\n    11: \"Synthetics\"\n]\n\ntry {\n    scriptCache = this.class.classLoader.loadClass(\"com.santaba.agent.util.script.ScriptCache\").getCache();\n    //scriptCache.remove(\"DeviceAlertStats-ResourceCache\")\n    String resourceCache = scriptCache.get(\"DeviceAlertStats-ResourceCache\");\n    if(resourceCache == null){\n        return -1\n    }\n    else{\n        devices = new JsonSlurper().parseText(resourceCache)\n    }\n} \ncatch (Exception ex) {\n\tprintln ex\n    return -1\n}\n\nif(devices){\n    devices.each { device -> \n        \n        println \"${device.id}##${device.displayName}######auto.device.type=${deviceType.getOrDefault(device.deviceType,\"Other Resources\")}\"\n    }\n}\n\nreturn 0"},"version":""}]]></adlist>
         <schemaVersion>2</schemaVersion>
+    <integrationMetadata>
+        <integrationVersion>1.0.0</integrationVersion>
+        <integrationAuthorCompanyUuid>1c0ca6ae-b3a2-4a08-9809-5935c90e4a1d</integrationAuthorCompanyUuid>
+        <integrationLineageId>9GtSy7UCQamOfOJnBTNTBw</integrationLineageId>
+        <integrationChecksum>e504ee1f73b9c6bc3e36b829a3044f50</integrationChecksum>
+        <integrationAuthorNamespace>lmstevenvillardi</integrationAuthorNamespace>
+        <integrationId>a1533c13-7b39-462c-b5b2-e5aec6a8e09e</integrationId>
+        <integrationLocator>4RTLFL</integrationLocator>
+        <integrationName></integrationName>
+        <integrationStatus>Security Review</integrationStatus>
+        <integrationPublishedAtMS>1700025224276</integrationPublishedAtMS>
+        <integrationIsPrivate>true</integrationIsPrivate>
+    </integrationMetadata>
         <dataSourceType>1</dataSourceType>
         <attributes>
         <attribute>
@@ -90,6 +105,7 @@ def durationPeriod = hostProps.get(&#34;alert.analysis.period&#34;) ?: hostProps
 def durationMinimum = hostProps.get(&#34;alert.analysis.minimumTimeInSeconds&#34;) ?: hostProps.get(&#34;alert.duration.minimumTimeInSeconds&#34;) ?: &#34;0&#34; //Default to include alerts of any duration)
 def deviceId = hostProps.get(&#34;system.deviceId&#34;)
 def scriptCache
+def maxAlertCacheSize = 10 //Number of scriptCache keys to utilize since max cache size is limited to around 20,000 alerts
 
 /*Calculate start and end date for alert query*/
 int timePeriod = 24 * durationPeriod.toInteger() //hours for rolling average
@@ -102,7 +118,8 @@ def devices
 
 try {
     scriptCache = this.class.classLoader.loadClass(&#34;com.santaba.agent.util.script.ScriptCache&#34;).getCache();
-    String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
+    //String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
+    String alertsCache = getAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache)
     if(alertsCache){
         /*Grab resources*/
         alerts = new JsonSlurper().parseText(alertsCache)
@@ -180,6 +197,31 @@ if(alerts &#38;&#38; devices){
 }
 
 return 0
+
+def getAlertCache(cacheLimit,cacheName,cacheObject){
+    def alerts = []
+    def i = 0
+    while(i &#60; cacheLimit){
+        String alertsCache = cacheObject.get(&#34;${cacheName}-${i}&#34;);
+        // println &#34;Getting cache index: ${i}&#34;
+        if(alertsCache == null){
+            break
+        }
+        else{
+            def cachedAlerts = new JsonSlurper().parseText(alertsCache)
+            alerts.addAll(cachedAlerts)
+            i++
+        }
+    }
+    // println &#34;Total cache size accross ${i} index(es), alert size ${alerts.size()}&#34;
+    if(alerts){
+        return new JsonBuilder( alerts ).toPrettyString()
+    }
+    else{
+        // println &#34;No cache found&#34;
+        return null
+    }
+}
 
 def calcDuration(collection, dpPrefix, deviceId) {
     if(collection){

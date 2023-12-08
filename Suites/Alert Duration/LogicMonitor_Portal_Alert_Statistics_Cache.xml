@@ -7,7 +7,7 @@
   <kmsKeyId></kmsKeyId>
   <pkdsRegion></pkdsRegion>
     <entry type="predatasource">
-        <version>1701882538</version>
+        <version>1702041633</version>
         <name>LogicMonitor_Portal_Alert_Statistics_Cache</name>
         <displayedas>LogicMonitor Portal Alert Statistics (Cache)</displayedas>
         <description>Populates collector script cache with cleared alert metrics and resources for use with alert statistics modules.</description>
@@ -78,7 +78,7 @@
  
  def additionalGroupIds = hostProps.get(&#34;alert.analysis.includeGroupIds&#34;) ?: hostProps.get(&#34;alert.duration.includeGroupIds&#34;) ?: null //Comma seperated list of group ids to include in discovery
 
- 
+ def maxAlertCacheSize = 10 //Number of scriptCache keys to utilize since max cache size is limited to around 20,000 alerts
  def portalName = hostProps.get(&#34;lmaccount&#34;)    ?: Settings.getSetting(Settings.AGENT_COMPANY)
  Map proxyInfo  = getProxyInfo()
  
@@ -198,7 +198,8 @@
      if(alertsCacheOptions){
         def alertCacheObject = new JsonSlurper().parseText(alertsCacheOptions)
         if((alertCacheObject.excludeUnACKedAlerts.toString() != excludeUnACKedAlerts) || (alertCacheObject.excludeSDTedAlerts.toString() != excludeSDTedAlerts) || (alertCacheObject.datasourceFilter.toString() != datasourceFilter) || (alertCacheObject.lookbackPeriod.toString() != lookbackPeriod)){
-            scriptCache.remove(&#34;DeviceAlertStats-AlertsCache&#34;)
+            //scriptCache.remove(&#34;DeviceAlertStats-AlertsCache&#34;)
+            removeAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache)
 
             def alertOptions = new JsonSlurper()
             def alertObject = &#34;{\&#34;excludeUnACKedAlerts\&#34;: ${excludeUnACKedAlerts},\&#34;excludeSDTedAlerts\&#34;: ${excludeSDTedAlerts},\&#34;datasourceFilter\&#34;: \&#34;${datasourceFilter}\&#34;,\&#34;lookbackPeriod\&#34;: ${lookbackPeriod}}&#34;
@@ -212,8 +213,10 @@
      }
      
      /*Collect alerts*/
-     //scriptCache.remove(&#34;DeviceAlertStats-AlertsCache&#34;)
-     String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
+    //scriptCache.remove(&#34;DeviceAlertStats-AlertsCache&#34;)
+    //removeAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache)
+     //String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
+     String alertsCache = getAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache)
  
      if(alertsCache == null){
          /*Grab alerts*/
@@ -238,8 +241,9 @@
          if(alerts){
              currentCacheSize = alerts.size()
              addedToCache = alerts.size()
-             alertsJson = new JsonBuilder( alerts ).toPrettyString()
-             scriptCache.set(&#34;DeviceAlertStats-AlertsCache&#34;,alertsJson,cacheTimeout * 1000);
+             setAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache,alerts,cacheTimeout)
+             //alertsJson = new JsonBuilder( alerts ).toPrettyString()
+             //scriptCache.set(&#34;DeviceAlertStats-AlertsCache&#34;,alertsJson,cacheTimeout * 1000);
          }
      }
      else{
@@ -274,8 +278,9 @@
          /*If we have alerts store them in script cache*/
          addedToCache = alerts.size()
          alerts.addAll(cachedAlerts)
-         alertsJson = new JsonBuilder( alerts ).toPrettyString()
-         scriptCache.set(&#34;DeviceAlertStats-AlertsCache&#34;,alertsJson,cacheTimeout * 1000);
+         setAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache,alerts,cacheTimeout)
+         //alertsJson = new JsonBuilder( alerts ).toPrettyString()
+         //scriptCache.set(&#34;DeviceAlertStats-AlertsCache&#34;,alertsJson,cacheTimeout * 1000);
          currentCacheSize = alerts.size()
          removedFromCache = previousCacheSize - removedFromCache
      }
@@ -296,6 +301,53 @@
      return -1
  }
  
+ def removeAlertCache(cacheLimit,cacheName,cacheObject){
+    def i = 0
+    while(i &#60; cacheLimit){
+        String alertsCache = cacheObject.remove(&#34;${cacheName}-${i}&#34;);
+        i++
+    }
+ }
+
+ def getAlertCache(cacheLimit,cacheName,cacheObject){
+    def alerts = []
+    def i = 0
+    while(i &#60; cacheLimit){
+        String alertsCache = cacheObject.get(&#34;${cacheName}-${i}&#34;);
+        // println &#34;Getting cache index: ${i}&#34;
+        if(alertsCache == null){
+            break
+        }
+        else{
+            def cachedAlerts = new JsonSlurper().parseText(alertsCache)
+            alerts.addAll(cachedAlerts)
+            i++
+        }
+    }
+    // println &#34;Total cache size accross ${i} index(es), alert size ${alerts.size()}&#34;
+    if(alerts){
+        return new JsonBuilder( alerts ).toPrettyString()
+    }
+    else{
+        // println &#34;No cache found&#34;
+        return null
+    }
+ }
+
+ def setAlertCache(cacheLimit,cacheName,cacheObject,cacheAlerts,cacheTimeout){
+    // println &#34;called to set alert cache: ${cacheAlerts.size()}&#34;
+    def alertLists = cacheAlerts.collate( 15000 )
+    alertLists.eachWithIndex{alerts, i -&#62;
+        // println &#34;Setting cache index: ${i}, alert size ${alerts.size()}&#34;
+        if(i &#60; cacheLimit){
+        alertsJson = new JsonBuilder( alerts ).toPrettyString()
+        cacheObject.set(&#34;${cacheName}-${i}&#34;,alertsJson,cacheTimeout * 1000);
+        }
+        else{
+            throw new Exception(&#34;Max alertCache partitions reached, consider lowering alert analysis period to a smaller number&#34;)
+        }
+    }
+ }
  
  /* Generate auth for API calls. */
  static String generateAuth(id, key, path) {
@@ -339,7 +391,7 @@ def formatGroupIds(alerts){
     alerts.each{alert -&#62;
         alert.monitorObjectGroups.each{group -&#62;
             if(alert.groupIds){
-                alert.groupIds = &#34;${alert.monitorObjectGroupIds},${(group.findAll {it.key == &#39;id&#39;}).id}&#34;
+                alert.groupIds = &#34;${alert.groupIds},${(group.findAll {it.key == &#39;id&#39;}).id}&#34;
             }
             else{
                 alert.groupIds = &#34;${(group.findAll {it.key == &#39;id&#39;}).id}&#34;
@@ -358,7 +410,7 @@ def formatGroupIds(alerts){
          return payload
      }
      else {
-         throw new Exception(&#34;Server return HTTP code ${request.getResponseCode()}&#34;)
+         throw new Exception(&#34;Server return HTTP code ${request.getResponseCode()} for endpoint ${endPoint}&#34;)
      }
  }
  

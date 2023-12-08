@@ -7,7 +7,7 @@
   <kmsKeyId></kmsKeyId>
   <pkdsRegion></pkdsRegion>
     <entry type="predatasource">
-        <version>1701836416</version>
+        <version>1702043094</version>
         <name>LogicMonitor_DeviceGroup_Alert_Statistics</name>
         <displayedas>LogicMonitor Device Group Alert Statistics</displayedas>
         <description>Tracks alert duration average over a rolling period of time.</description>
@@ -74,7 +74,7 @@ return 0
         <integrationName></integrationName>
         <integrationStatus>Security Review</integrationStatus>
         <integrationPublishedAtMS>1701882921797</integrationPublishedAtMS>
-        <integrationIsPrivate>true</integrationIsPrivate>
+        <integrationIsPrivate></integrationIsPrivate>
     </integrationMetadata>
         <dataSourceType>1</dataSourceType>
         <attributes>
@@ -92,6 +92,8 @@ import groovy.json.*
 
 def durationPeriod = hostProps.get(&#34;alert.analysis.period&#34;) ?: hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;7&#34; //Default to 7 day(s)
 def durationMinimum = hostProps.get(&#34;alert.analysis.minimumTimeInSeconds&#34;) ?: hostProps.get(&#34;alert.duration.minimumTimeInSeconds&#34;) ?: &#34;0&#34; //Default to include alerts of any duration)
+def maxAlertCacheSize = 10 //Number of scriptCache keys to utilize since max cache size is limited to around 20,000 alerts
+
 def scriptCache
 
 /*Calculate start and end date for alert query*/
@@ -105,7 +107,8 @@ def groups
 
 try {
     scriptCache = this.class.classLoader.loadClass(&#34;com.santaba.agent.util.script.ScriptCache&#34;).getCache();
-    String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
+    //String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
+    String alertsCache = getAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache)
     if(alertsCache){
         /*Grab alerts*/
         alerts = new JsonSlurper().parseText(alertsCache)
@@ -124,7 +127,7 @@ catch (Exception ex) {
 
 if(alerts &#38;&#38; groups){
     groups.each { group -&#62; 
-        def matching_alerts = alerts.findAll { it.groupIds.split(&#39;,&#39;).contains(group.id.toString())}
+        def matching_alerts = alerts.findAll{ if(it.groupIds){it.groupIds.split(&#39;,&#39;).contains(group.id.toString())}else{false}}
         if(matching_alerts){
             matching_alerts.each { alert -&#62;
                 double duration = alert.endEpoch - alert.startEpoch
@@ -181,6 +184,31 @@ if(alerts &#38;&#38; groups){
 }
 
 return 0
+
+def getAlertCache(cacheLimit,cacheName,cacheObject){
+    def alerts = []
+    def i = 0
+    while(i &#60; cacheLimit){
+        String alertsCache = cacheObject.get(&#34;${cacheName}-${i}&#34;);
+        // println &#34;Getting cache index: ${i}&#34;
+        if(alertsCache == null){
+            break
+        }
+        else{
+            def cachedAlerts = new JsonSlurper().parseText(alertsCache)
+            alerts.addAll(cachedAlerts)
+            i++
+        }
+    }
+    // println &#34;Total cache size accross ${i} index(es), alert size ${alerts.size()}&#34;
+    if(alerts){
+        return new JsonBuilder( alerts ).toPrettyString()
+    }
+    else{
+        // println &#34;No cache found&#34;
+        return null
+    }
+}
 
 def calcDuration(collection, dpPrefix, groupId) {
     if(collection){
