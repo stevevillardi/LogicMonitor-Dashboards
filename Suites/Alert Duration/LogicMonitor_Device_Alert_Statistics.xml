@@ -75,17 +75,17 @@ return 0</wildcardgroovyscript>
         <adlist><![CDATA[{"agdmethod":"ilp","method":"ad_script","agdparams":"auto.device.type","locatorId":"","id":0,"filters":[],"params":{"type":"embeded","groovyscript":"/*******************************************************************************\n * © 2007-2023 - LogicMonitor, Inc. All rights reserved.\n ******************************************************************************/\nimport groovy.json.*\n\ndef devices\n\nMap deviceType = [\n    0: \"Standard Resources\",\n    2: \"AWS Resources\",\n    4: \"Azure Resources\",\n    6: \"Services\",\n    7: \"GCP Resources\",\n    8: \"K8s Resources\",\n    10: \"SaaS Resources\",\n    11: \"Synthetics\"\n]\n\ntry {\n    scriptCache = this.class.classLoader.loadClass(\"com.santaba.agent.util.script.ScriptCache\").getCache();\n    //scriptCache.remove(\"DeviceAlertStats-ResourceCache\")\n    String resourceCache = scriptCache.get(\"DeviceAlertStats-ResourceCache\");\n    if(resourceCache == null){\n        return -1\n    }\n    else{\n        devices = new JsonSlurper().parseText(resourceCache)\n    }\n} \ncatch (Exception ex) {\n\tprintln ex\n    return -1\n}\n\nif(devices){\n    devices.each { device -> \n        \n        println \"${device.id}##${device.displayName}######auto.device.type=${deviceType.getOrDefault(device.deviceType,\"Other Resources\")}\"\n    }\n}\n\nreturn 0"},"version":""}]]></adlist>
         <schemaVersion>2</schemaVersion>
     <integrationMetadata>
-        <integrationVersion>1.0.0</integrationVersion>
+        <integrationVersion>2.0.0</integrationVersion>
         <integrationAuthorCompanyUuid>1c0ca6ae-b3a2-4a08-9809-5935c90e4a1d</integrationAuthorCompanyUuid>
         <integrationLineageId>9GtSy7UCQamOfOJnBTNTBw</integrationLineageId>
-        <integrationChecksum>e504ee1f73b9c6bc3e36b829a3044f50</integrationChecksum>
+        <integrationChecksum>d043ff2fc6a24a018eea60802082badb</integrationChecksum>
         <integrationAuthorNamespace>lmstevenvillardi</integrationAuthorNamespace>
-        <integrationId>a1533c13-7b39-462c-b5b2-e5aec6a8e09e</integrationId>
-        <integrationLocator>4RTLFL</integrationLocator>
+        <integrationId>ec7ee542-651f-4ffd-a830-e212e9c93b70</integrationId>
+        <integrationLocator>D4N7YN</integrationLocator>
         <integrationName></integrationName>
         <integrationStatus>Security Review</integrationStatus>
-        <integrationPublishedAtMS>1700025224276</integrationPublishedAtMS>
-        <integrationIsPrivate>true</integrationIsPrivate>
+        <integrationPublishedAtMS>1702058018076</integrationPublishedAtMS>
+        <integrationIsPrivate>false</integrationIsPrivate>
     </integrationMetadata>
         <dataSourceType>1</dataSourceType>
         <attributes>
@@ -834,8 +834,8 @@ Double getPercentile(collection, percentile, dpPrefix, deviceId) {
             </graphdatas>
         </graph>
         <graph>
-            <name>Resolved Alert Count: Rolling ##ALERT.DURATION.PERIOD## day(s)</name>
-            <title>Resolved Alert Count: Rolling ##ALERT.DURATION.PERIOD## day(s)</title>
+            <name>Resolved Alert Count</name>
+            <title>Resolved Alert Count</title>
             <originId></originId>            <verticallabel># of alerts</verticallabel>
             <rigid>false</rigid>
             <maxvalue>NaN</maxvalue>
@@ -867,7 +867,7 @@ Double getPercentile(collection, percentile, dpPrefix, deviceId) {
         <overviewgraphs>
         <overviewgraph>
             <name>Top Device Alert Duration Average</name>
-            <title>Top Devices by Alert Duration Average: Rolling ##ALERT.DURATION.PERIOD## day(s)</title>
+            <title>Top Devices by Alert Duration Average</title>
             <verticallabel>minutes</verticallabel>
             <rigid>false</rigid>
             <maxvalue>NaN</maxvalue>
@@ -900,7 +900,7 @@ Double getPercentile(collection, percentile, dpPrefix, deviceId) {
         </overviewgraph>
         <overviewgraph>
             <name>Top Devices by Resolved Alert Count</name>
-            <title>Top Devices by Resolved Alert Count: Rolling ##ALERT.DURATION.PERIOD## day(s)</title>
+            <title>Top Devices by Resolved Alert Count</title>
             <verticallabel># of alerts</verticallabel>
             <rigid>false</rigid>
             <maxvalue>NaN</maxvalue>

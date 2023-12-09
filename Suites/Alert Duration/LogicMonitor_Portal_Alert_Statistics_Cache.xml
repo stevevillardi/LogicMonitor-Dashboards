@@ -7,7 +7,7 @@
   <kmsKeyId></kmsKeyId>
   <pkdsRegion></pkdsRegion>
     <entry type="predatasource">
-        <version>1702041633</version>
+        <version>1702087596</version>
         <name>LogicMonitor_Portal_Alert_Statistics_Cache</name>
         <displayedas>LogicMonitor Portal Alert Statistics (Cache)</displayedas>
         <description>Populates collector script cache with cleared alert metrics and resources for use with alert statistics modules.</description>
@@ -34,16 +34,16 @@
         <adlist><![CDATA[{"agdmethod":"none","agdparams":"","locatorId":"","id":0,"filters":[],"params":{},"version":""}]]></adlist>
         <schemaVersion>2</schemaVersion>
     <integrationMetadata>
-        <integrationVersion>1.1.0</integrationVersion>
+        <integrationVersion>2.1.0</integrationVersion>
         <integrationAuthorCompanyUuid>1c0ca6ae-b3a2-4a08-9809-5935c90e4a1d</integrationAuthorCompanyUuid>
         <integrationLineageId>1KkJeqFRRXu9obqHRMzTmA</integrationLineageId>
-        <integrationChecksum>dfe7d9cd2e8278d686f70dc2ef1777a2</integrationChecksum>
+        <integrationChecksum>f32f8e7b22841d1355b51a9c294c13c8</integrationChecksum>
         <integrationAuthorNamespace>lmstevenvillardi</integrationAuthorNamespace>
-        <integrationId>49dbe789-73e1-45f8-9a95-bf13a873fb56</integrationId>
-        <integrationLocator>HWD2XF</integrationLocator>
+        <integrationId>82989f2e-4524-4fcb-8b8e-58b90fd85386</integrationId>
+        <integrationLocator>DJJXEE</integrationLocator>
         <integrationName></integrationName>
         <integrationStatus>Security Review</integrationStatus>
-        <integrationPublishedAtMS>1701882572090</integrationPublishedAtMS>
+        <integrationPublishedAtMS>1702087638709</integrationPublishedAtMS>
         <integrationIsPrivate>false</integrationIsPrivate>
     </integrationMetadata>
         <dataSourceType>1</dataSourceType>
@@ -177,7 +177,7 @@
  
      if(resourceCache == null || elapsedTime &#62;= 3000){
          /*Grab resource*/
-         devices = apiGetManyV2(portalName, apiId, apiKey, &#34;/device/devices&#34;, proxyInfo, [&#39;fields&#39;:&#34;id,name,displayName,deviceType&#34;,&#39;size&#39;:1000,&#39;sort&#39;:&#34;displayName&#34;])
+         devices = apiGetManyV2(portalName, apiId, apiKey, &#34;/device/devices&#34;, proxyInfo, [&#39;fields&#39;:&#34;id,displayName,deviceType&#34;,&#39;size&#39;:1000,&#39;sort&#39;:&#34;displayName&#34;])
          if(devices){
              devicesJson = new JsonBuilder( devices ).toPrettyString()
              devicesExp = Long.toString(endEpoch)

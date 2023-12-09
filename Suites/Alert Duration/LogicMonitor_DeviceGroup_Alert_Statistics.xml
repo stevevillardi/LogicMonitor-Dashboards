@@ -7,7 +7,7 @@
   <kmsKeyId></kmsKeyId>
   <pkdsRegion></pkdsRegion>
     <entry type="predatasource">
-        <version>1702043094</version>
+        <version>1702043113</version>
         <name>LogicMonitor_DeviceGroup_Alert_Statistics</name>
         <displayedas>LogicMonitor Device Group Alert Statistics</displayedas>
         <description>Tracks alert duration average over a rolling period of time.</description>
@@ -64,17 +64,17 @@ return 0
         <adlist><![CDATA[{"agdmethod":"none","method":"ad_script","agdparams":"","locatorId":"","id":0,"filters":[],"params":{"type":"embeded","groovyscript":"/*******************************************************************************\n * © 2007-2023 - LogicMonitor, Inc. All rights reserved.\n ******************************************************************************/\nimport groovy.json.*\n\ndef groups\n\ntry {\n    scriptCache = this.class.classLoader.loadClass(\"com.santaba.agent.util.script.ScriptCache\").getCache();\n    //scriptCache.remove(\"DeviceAlertStats-deviceGroupCache\")\n    String deviceGroupCache = scriptCache.get(\"DeviceAlertStats-deviceGroupCache\");\n    if(deviceGroupCache == null){\n        return -1\n    }\n    else{\n        groups = new JsonSlurper().parseText(deviceGroupCache)\n    }\n} \ncatch (Exception ex) {\n\tprintln ex\n    return -1\n}\n\nif(groups){\n    groups.each { group -> \n        \n        println \"${group.id}##${group.name}##${group.fullPath}####\"\n    }\n}\nreturn 0\n"},"version":""}]]></adlist>
         <schemaVersion>2</schemaVersion>
     <integrationMetadata>
-        <integrationVersion>1.0.0</integrationVersion>
+        <integrationVersion>2.0.0</integrationVersion>
         <integrationAuthorCompanyUuid>1c0ca6ae-b3a2-4a08-9809-5935c90e4a1d</integrationAuthorCompanyUuid>
         <integrationLineageId>47k9JgngTVySDIquhq6uKg</integrationLineageId>
-        <integrationChecksum>f7c44de465d765fb4141b46455435448</integrationChecksum>
+        <integrationChecksum>6d1caea28caae0bb1ff1329f130a9772</integrationChecksum>
         <integrationAuthorNamespace>lmstevenvillardi</integrationAuthorNamespace>
-        <integrationId>0ab0e435-5465-4866-ac55-1f130a58c1d1</integrationId>
-        <integrationLocator>7EYNJL</integrationLocator>
+        <integrationId>562ead64-e077-4617-a4c9-24d5785b290d</integrationId>
+        <integrationLocator>JH6HGZ</integrationLocator>
         <integrationName></integrationName>
         <integrationStatus>Security Review</integrationStatus>
-        <integrationPublishedAtMS>1701882921797</integrationPublishedAtMS>
-        <integrationIsPrivate></integrationIsPrivate>
+        <integrationPublishedAtMS>1702057976999</integrationPublishedAtMS>
+        <integrationIsPrivate>false</integrationIsPrivate>
     </integrationMetadata>
         <dataSourceType>1</dataSourceType>
         <attributes>
@@ -821,8 +821,8 @@ Double getPercentile(collection, percentile, dpPrefix, groupId) {
             </graphdatas>
         </graph>
         <graph>
-            <name>Resolved Alert Count: Rolling ##ALERT.DURATION.PERIOD## day(s)</name>
-            <title>Resolved Alert Count: Rolling ##ALERT.DURATION.PERIOD## day(s)</title>
+            <name>Resolved Alert Count</name>
+            <title>Resolved Alert Count</title>
             <originId></originId>            <verticallabel># of alerts</verticallabel>
             <rigid>false</rigid>
             <maxvalue>NaN</maxvalue>
@@ -853,8 +853,8 @@ Double getPercentile(collection, percentile, dpPrefix, groupId) {
         </graphs>
         <overviewgraphs>
         <overviewgraph>
-            <name>Top Device Alert Duration Average</name>
-            <title>Top Devices by Alert Duration Average: Rolling ##ALERT.DURATION.PERIOD## day(s)</title>
+            <name>Top Devices by Alert Duration Average</name>
+            <title>Top Devices by Alert Duration Average</title>
             <verticallabel>minutes</verticallabel>
             <rigid>false</rigid>
             <maxvalue>NaN</maxvalue>
@@ -887,7 +887,7 @@ Double getPercentile(collection, percentile, dpPrefix, groupId) {
         </overviewgraph>
         <overviewgraph>
             <name>Top Devices by Resolved Alert Count</name>
-            <title>Top Devices by Resolved Alert Count: Rolling ##ALERT.DURATION.PERIOD## day(s)</title>
+            <title>Top Devices by Resolved Alert Count</title>
             <verticallabel># of alerts</verticallabel>
             <rigid>false</rigid>
             <maxvalue>NaN</maxvalue>

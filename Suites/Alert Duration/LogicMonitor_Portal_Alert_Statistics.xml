@@ -34,17 +34,17 @@
         <adlist><![CDATA[{"agdmethod":"none","agdparams":"","locatorId":"","id":0,"filters":[],"params":{},"version":""}]]></adlist>
         <schemaVersion>2</schemaVersion>
     <integrationMetadata>
-        <integrationVersion>1.0.0</integrationVersion>
+        <integrationVersion>2.0.0</integrationVersion>
         <integrationAuthorCompanyUuid>1c0ca6ae-b3a2-4a08-9809-5935c90e4a1d</integrationAuthorCompanyUuid>
         <integrationLineageId>6wKfU0LITt6aY1DIAhxYDA</integrationLineageId>
-        <integrationChecksum>dfb51d729d49ace8f493d4d2cdcea59a</integrationChecksum>
+        <integrationChecksum>04cf0e7fe4b5d60cdf6aeb7fcb506ae7</integrationChecksum>
         <integrationAuthorNamespace>lmstevenvillardi</integrationAuthorNamespace>
-        <integrationId>fc13abb0-99ea-41a8-a9d9-06af0cfc7e30</integrationId>
-        <integrationLocator>R9FP4N</integrationLocator>
+        <integrationId>43ed55e5-9192-4860-9394-1c64623e5a40</integrationId>
+        <integrationLocator>ZH4YF7</integrationLocator>
         <integrationName></integrationName>
         <integrationStatus>Security Review</integrationStatus>
-        <integrationPublishedAtMS>1700025205039</integrationPublishedAtMS>
-        <integrationIsPrivate>true</integrationIsPrivate>
+        <integrationPublishedAtMS>1702058059244</integrationPublishedAtMS>
+        <integrationIsPrivate>false</integrationIsPrivate>
     </integrationMetadata>
         <dataSourceType>1</dataSourceType>
         <attributes>
@@ -705,8 +705,8 @@ Double getPercentile(collection, percentile) {
             </graphdatas>
         </graph>
         <graph>
-            <name>Resolved Alert Count: Rolling ##DURATION.PERIOD## day(s)</name>
-            <title>Resolved Alert Count: Rolling ##DURATION.PERIOD## day(s)</title>
+            <name>Resolved Alert Count</name>
+            <title>Resolved Alert Count</title>
             <originId></originId>            <verticallabel># of alerts</verticallabel>
             <rigid>false</rigid>
             <maxvalue>NaN</maxvalue>
