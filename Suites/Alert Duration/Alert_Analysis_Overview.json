@@ -1,5 +1,5 @@
 {
-  "santabaRelease": 196,
+  "santabaRelease": 197,
   "widgetTokens": [
     {
       "name": "defaultInstanceName",
@@ -176,7 +176,7 @@
             "unitLabel": " min",
             "maxValue": 0,
             "colorThresholds": [],
-            "columnName": "P95 Average",
+            "columnName": "95th Percentile",
             "enableForecast": false,
             "roundingDecimal": 2
           },
@@ -235,7 +235,7 @@
         "topX": -1,
         "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
         "sortOrder": "descending",
-        "name": "Device: Overall Average Duration (Current Period)",
+        "name": "Device: Overall Duration - Average (Current Period)",
         "theme": "newSolidDarkBlue",
         "interval": 3,
         "timescale": "day"
@@ -487,7 +487,7 @@
         "topX": -1,
         "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
         "sortOrder": "descending",
-        "name": "Device: P95 Average Duration by Severity (Current Period)",
+        "name": "Device: Duration by Severity - 95th Percentile  (Current Period)",
         "theme": "newSolidDarkBlue",
         "interval": 3,
         "timescale": "day"
@@ -717,7 +717,7 @@
       },
       "config": {
         "displaySettings": {},
-        "name": "Portal Wide: Overall Average Duration (Current Period)",
+        "name": "Portal Wide: Overall Duration - Average (Current Period)",
         "description": "",
         "theme": "newBorderDarkBlue",
         "interval": 3,
@@ -772,7 +772,7 @@
       },
       "config": {
         "displaySettings": {},
-        "name": "Portal Wide: Overall P95 Duration (Current Period)",
+        "name": "Portal Wide: Overall Duration - 95th Percentile (Current Period)",
         "description": "",
         "theme": "newBorderDarkBlue",
         "interval": 3,
@@ -870,7 +870,7 @@
       },
       "config": {
         "displaySettings": {},
-        "name": "Top 10 Highest P95 Duration by Device (Current Period)",
+        "name": "Top 10 Highest Duration by Device - 95th Percentile (Current Period)",
         "description": "",
         "theme": "newSolidDarkBlue",
         "interval": 3,
@@ -899,7 +899,7 @@
             "color": "auto",
             "legend": "##INSTANCE##"
           }],
-          "title": "Top 10 Highest P95 Duration by Device (Current Period)"
+          "title": "Top 10 Highest Duration by Device - 95th Percentile (Current Period)"
         },
         "version": 2
       }
@@ -913,7 +913,7 @@
       },
       "config": {
         "displaySettings": {},
-        "name": "Top Devices by Average Alert Duration (Current Period)",
+        "name": "Top Devices by Alert Duration - Average (Current Period)",
         "description": "",
         "theme": "newBorderDarkBlue",
         "interval": 3,
@@ -968,7 +968,7 @@
       },
       "config": {
         "displaySettings": {},
-        "name": "Top Devices by Average P95 Duration (Current Period)",
+        "name": "Top Devices by Duration - 95th Percentile (Current Period)",
         "description": "",
         "theme": "newBorderDarkBlue",
         "interval": 3,
@@ -1066,7 +1066,7 @@
       },
       "config": {
         "displaySettings": {},
-        "name": "Top 10 Highest P95 Duration by Device Group (Current Period)",
+        "name": "Top 10 Highest Duration by Device Group - 95th Percentile (Current Period)",
         "description": "",
         "theme": "newSolidDarkBlue",
         "interval": 3,
@@ -1095,7 +1095,7 @@
             "color": "Auto",
             "legend": "##INSTANCE##"
           }],
-          "title": "Top 10 Highest P95 Duration by Device Group (Current Period)"
+          "title": "Top 10 Highest Duration by Device Group - 95th Percentile (Current Period)"
         },
         "version": 2
       }
@@ -1170,7 +1170,7 @@
             "unitLabel": " min",
             "maxValue": 0,
             "colorThresholds": [],
-            "columnName": "P95 Average",
+            "columnName": "95th Percentile",
             "enableForecast": false,
             "roundingDecimal": 2
           },
@@ -1397,7 +1397,7 @@
       },
       "config": {
         "displaySettings": {},
-        "name": "Top Device Groups by Average Alert Duration (Current Period)",
+        "name": "Top Device Groups by Alert Duration - Average (Current Period)",
         "description": "",
         "theme": "newBorderDarkBlue",
         "interval": 3,
@@ -1452,7 +1452,7 @@
       },
       "config": {
         "displaySettings": {},
-        "name": "Top Device Groups by Average P95 Duration (Current Period)",
+        "name": "Top Device Groups by Duration - 95th Percentile (Current Period)",
         "description": "",
         "theme": "newBorderDarkBlue",
         "interval": 3,
