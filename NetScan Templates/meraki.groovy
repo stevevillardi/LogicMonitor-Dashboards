@@ -35,6 +35,8 @@ if (!key) {
 }
  
 def logCacheContext = "${org}::cisco-meraki-cloud"
+Boolean skipDeviceDedupe = props.get("skip.device.dedupe", "false").toBoolean()
+String hostnameSource    = props.get("hostname.source", "")?.toLowerCase()?.trim()
  
 Integer collectorVersion = AgentVersion.AGENT_VERSION.toInteger()
   
@@ -52,14 +54,21 @@ def httpSnip    = modLoader.load("proto.http", "0")
 def http        = httpSnip.httpSnippetFactory(props)
 def cacheSnip   = modLoader.load("lm.cache", "0")
 def cache       = cacheSnip.cacheSnippetFactory(lmDebug, logCacheContext)
+// Only initialize lmApi snippet class if customer has not opted out
+def lmApi
+if (!skipDeviceDedupe) {
+    def lmApiSnippet = modLoader.load("lm.api", "0")
+    lmApi = lmApiSnippet.lmApiSnippetFactory(props, http, lmDebug)
+}
 def ciscoMerakiCloudSnip = modLoader.load("cisco.meraki.cloud", "0")
 def ciscoMerakiCloud     = ciscoMerakiCloudSnip.ciscoMerakiCloudSnippetFactory(props, lmDebug, cache, http)
  
 String orgDisplayname      = props.get("meraki.api.org.name") ?: "MerakiOrganization"
-String orgFolder           = props.get("meraki.api.org.folder") ? props.get("meraki.api.org.folder") + "/" : ""
+String rootFolder          = props.get("meraki.api.org.folder") ? props.get("meraki.api.org.folder") + "/" : ""
 String serviceUrl          = props.get("meraki.service.url") ?: "https://api.meraki.com/api/v1"
-def networksWhitelist    = props.get("meraki.api.org.networks")?.tokenize(",")?.collect{ it.trim() }
-def collectorNetworksCSV = props.get("meraki.api.org.collector.networks.csv")
+def disableSwitches        = props.get("meraki.disableswitches")?.toBoolean() ?: false
+def networksWhitelist      = props.get("meraki.api.org.networks")?.tokenize(",")?.collect{ it.trim() }
+def collectorNetworksCSV   = props.get("meraki.api.org.collector.networks.csv")
 def collectorNetworkInfo
 if (collectorNetworksCSV) collectorNetworkInfo = processCollectorNetworkInfoCSV(collectorNetworksCSV)
  
@@ -70,6 +79,7 @@ String merakiSnmpAuthToken = props.get("meraki.snmp.authToken.pass")
 String merakiSnmpPriv      = props.get("meraki.snmp.priv")
 String merakiSnmpPrivToken = props.get("meraki.snmp.privToken.pass")
  
+String cacheFilename = "Meraki_Org_${org}_devices"
 Map sensitiveProps = [
     "meraki.api.key"   : key,
     "meraki.snmp.community.pass" : merakiSnmpCommunity,
@@ -79,9 +89,42 @@ Map sensitiveProps = [
 ]
  
 // Determine whether there are devices cached on disk that still need to be added from previous netscan runs
-if (processResourcesJson(emit, "devices", sensitiveProps, lmDebug)) return 0
+if (processResourcesJson(emit, cacheFilename, sensitiveProps, lmDebug)) return 0
+ 
+// Get information about devices that already exist in LM portal
+List fields = ["name", "currentCollectorId", "displayName"]
+Map args = ["size": 1000, "fields": fields.join(",")]
+def lmDevices
+// But first determine if the portal size is within a range that allows us to get all devices at once
+def pathFlag, portalInfo, timeLimitSec, timeLimitMs
+if (!skipDeviceDedupe) {
+    portalInfo = lmApi.apiCallInfo("Devices", args)
+    timeLimitSec = props.get("lmapi.timelimit.sec", "60").toInteger()
+    timeLimitMs = (timeLimitSec) ? Math.min(Math.max(timeLimitSec, 30), 120) * 1000 : 60000 // Allow range 30-120 sec if configured; default to 60 sec
+ 
+    if (portalInfo.timeEstimateMs > timeLimitMs) {
+        lmDebug.LMDebugPrint("Estimate indicates LM API calls would take longer than time limit configured.  Proceeding with individual queries by display name for each device to add.")
+        lmDebug.LMDebugPrint("\t${portalInfo}\n\tNOTE:  Time limit is set to ${timeLimitSec} seconds.  Adjust this limit by setting the property lmapi.timelimit.sec.  Max 120 seconds, min 30 seconds.")
+        pathFlag = "ind"
+    }
+    else {
+        lmDebug.LMDebugPrint("Response time indicates LM API calls will complete in a reasonable time range.  Proceeding to collect info on all devices to cross reference and prevent duplicate device creation.\n\t${portalInfo}")
+        pathFlag = "all"
+        lmDevices = lmApi.getPortalDevices(args)
+    }
+}
  
 List<Map> resources = []
+ 
+def now = new Date()
+def dateFormat = "yyyy-MM-dd'T'HH:mm:ss.s z"
+TimeZone tz = TimeZone.getDefault()
+Map duplicateResources = [
+    "date" : now.format(dateFormat, tz),
+    "message" : "Duplicate display names found within LogicMonitor portal wherein hostname in LM does not match hostname in Netscan output.  Refer to documentation for how to resolve name collisions using 'hostname.source' netscan property.",
+    "total" : 0,
+    "resources" : []
+]
  
 // Gather data from cache if running in debug otherwise make API requests
 def orgDevicesStatuses
@@ -138,6 +181,61 @@ orgDevicesStatuses.each { orgDevice ->
     def name = orgDevice.get("name")
     def productType = orgDevice.get("productType")
     def serial = orgDevice.get("serial")
+ 
+    String displayName = name
+ 
+    // Check for existing device in LM portal with this displayName; set to false initially and update to true when dupe found
+    def deviceMatch = false
+    // If customer has opted out of device deduplication checks, we skip the lookups where we determine if a match exists and proceed as false
+    if (!skipDeviceDedupe) {
+        if (pathFlag == "ind") {
+            deviceMatch = lmApi.findPortalDevice(displayName, args)
+        }
+        else if (pathFlag == "all") {
+            deviceMatch = lmApi.checkExistingDevices(displayName, lmDevices)
+        }
+    }
+    if (deviceMatch) {
+        // Log duplicates that would cause additional devices to be created; unless these entries are resolved, they will not be added to resources for netscan output
+        if (ip != deviceMatch.name) {
+            def collisionInfo = [
+                (displayName) : [
+                    "Netscan" : [
+                        "hostname"    : ip
+                    ],
+                    "LM" : [
+                        "hostname"    : deviceMatch.name,
+                        "collectorId" : deviceMatch.currentCollectorId
+                    ],
+                    "Resolved" : false
+                ]
+            ]
+     
+            // If user specified to use LM hostname on display name match, update hostname variable accordingly
+            // and flag it as no longer a match since we have resolved the collision with user's input
+            if (hostnameSource == "lm" || hostnameSource == "logicmonitor") {
+                ip = deviceMatch.name
+                deviceMatch = false
+                collisionInfo[displayName]["Resolved"] = true
+            }
+            // If user specified to use netscan data for hostname, update the display name to make it unique
+            // and flag it as no longer a match since we have resolved the collision with user's input
+            else if (hostnameSource == "netscan") {
+                // Update the resolved status before we change the displayName
+                collisionInfo[displayName]["Resolved"] = true
+                displayName = "${displayName} - ${ip}"
+                deviceMatch = false
+            }
+     
+            duplicateResources["resources"].add(collisionInfo)
+        }
+        // Don't worry about matches where the hostname values are the same
+        // These will update via normal netscan processing and should be ignored
+        else {
+            deviceMatch = false
+        }
+    }
+ 
     // Verify we have minimum requirements for device creation
     if (ip && networkId && productType && serial) {
         if (ip == "127.0.0.1") ip = name
@@ -151,6 +249,7 @@ orgDevicesStatuses.each { orgDevice ->
         ]
  
         if (networksWhitelist != null) deviceProps.put("meraki.api.org.networks", emit.sanitizePropertyValue(networksWhitelist))
+        if (disableSwitches) deviceProps.put("meraki.disableswitches", "true")
  
         if (merakiSnmpCommunity) deviceProps.put("meraki.snmp.community.pass", merakiSnmpCommunity)
         if (merakiSnmpSecurity) deviceProps.put("meraki.snmp.security", merakiSnmpSecurity)
@@ -173,58 +272,54 @@ orgDevicesStatuses.each { orgDevice ->
             deviceProps.put("system.categories", "CiscoMerakiWireless")
         } else if (productType == "appliance") {
             deviceProps.put("system.categories", "CiscoMerakiAppliance")
+        } else if (productType == "cellularGateway") {
+            deviceProps.put("system.categories", "CiscoMerakiCellularGateway")
         }
  
         deviceProps.put("meraki.productType", productType)
  
         // Set group and collector ID based on user CSV inputs if provided
+        def collectorId = null
+        Map resource = [:]
         if (collectorNetworkInfo) {
-            def collectorId = collectorNetworkInfo[networkId]["collectorId"]
+            collectorId = collectorNetworkInfo[networkId]["collectorId"]
             def folder      = collectorNetworkInfo[networkId]["folder"]
-            Map resource = [
+            resource = [
                 "hostname"    : ip,
                 "displayname" : name,
                 "hostProps"   : deviceProps,
-                "groupName"   : ["${orgFolder}${folder}/${networkName}"],
+                "groupName"   : ["${rootFolder}${folder}/${networkName}"],
                 "collectorId" : collectorId
             ]
-            resources.add(resource)
         } else {
-            Map resource = [
+            resource = [
                 "hostname"    : ip,
                 "displayname" : name,
                 "hostProps"   : deviceProps,
-                "groupName"   : ["${orgFolder}${orgDisplayname}/${networkName}"]
+                "groupName"   : ["${rootFolder}${orgDisplayname}/${networkName}"]
             ]
+        }
+ 
+        // Only add the collectorId field to resource map if we found a collector ID above
+        if (collectorId) {
+            resource["collectorId"] = collectorId
+            duplicateResources["resources"][displayName]["Netscan"][0]["collectorId"] = collectorId
+        }
+ 
+        if (!deviceMatch) {
             resources.add(resource)
         }
     }
 }
  
-emitWriteJsonResources(emit, "devices", resources, lmDebug)
- 
-return 0
- 
- 
-/**
- * Sanitizes filepath and instantiates File object
- * @param filename String
- * @param fileExtension String
- * @return File object using sanitized relative filepath
-*/
-File newFile(String filename, String fileExtension) {
-    // Ensure relative filepath is complete with extension type
-    def filepath
-    if (!filename.startsWith("./")) {
-        filepath = "./${filename}"
-    }
-    if (!filepath.endsWith(".${fileExtension}")) {
-        filepath = "${filepath}.${fileExtension}"
-    }
- 
-    return new File(filepath)
+lmDebug.LMDebugPrint("Duplicate Resources:")
+duplicateResources.resources.each {
+    lmDebug.LMDebugPrint("\t${it}")
 }
  
+emitWriteJsonResources(emit, cacheFilename, resources, lmDebug)
+ 
+return 0
  
 /**
  * Processes a CSV with headers collector id, network organization device name, folder, and network
@@ -268,7 +363,26 @@ Map processCollectorNetworkInfoCSV(String filename) {
     return collectorInfo
 }
  
+/**
+ * Sanitizes filepath and instantiates File object
+ * @param filename String
+ * @param fileExtension String
+ * @return File object using sanitized relative filepath
+*/
+File newFile(String filename, String fileExtension) {
+    // Ensure relative filepath is complete with extension type
+    def filepath
+    if (!filename.startsWith("./")) {
+        filepath = "./${filename}"
+    }
+    if (!filepath.endsWith(".${fileExtension}")) {
+        filepath = "${filepath}.${fileExtension}"
+    }
  
+    return new File(filepath)
+}
+ 
+////////////////////////////////////////////////////////////// DEVICE BATCHING METHODS //////////////////////////////////////////////////////////////
 /**
  * Replaces cached props stored with bogus values with their correct values
  * @param cachedProps Map of hostProps values stored in file cache
@@ -276,7 +390,7 @@ Map processCollectorNetworkInfoCSV(String filename) {
  * @return completeHostProps Map updated hostProps with no bogus values
 */
 Map processCachedHostProps(Map cachedProps, Map sensitiveProps) {
-    Map completeHostProps = cachedProps.collectEntries{ k,v ->
+    Map completeHostProps = cachedProps.collectEntries{ k, v ->
                                 if (sensitiveProps.containsKey(k)) {
                                     return [k as String, sensitiveProps[k]]
                                 }
@@ -341,7 +455,7 @@ def emitWriteJsonResources(emit, String filename, List<Map> resources, lmDebug) 
     lmDebug.LMDebugPrint("Adding ${chunk} devices.")
     // Output resources in chunk size deemed safe by platform team
     emit.resource(resources[0..chunk-1], lmDebug.debug)
- 
+  
     File cacheFile = newFile(filename, "json")
     // If the number of resources is less than or equal to our chunk size, our batching is complete and we can delete the file and exit
     if (resources.size() <= chunk) {
