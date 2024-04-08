@@ -1,20 +1,20 @@
 /*******************************************************************************
  * © 2007-2024 - LogicMonitor, Inc. All rights reserved.
  ******************************************************************************/
- 
+
 import com.logicmonitor.common.sse.utils.GroovyScriptHelper as GSH
 import com.logicmonitor.mod.Snippets
 import com.santaba.agent.AgentVersion
 import java.text.DecimalFormat
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
- 
+
 // To run in debug mode, set to true
 Boolean debug = false
-debug = false
+
 // To enable logging, set to true
 Boolean log = false
- 
+
 // Set props object based on whether or not we are running inside a netscan or debug console
 def props
 try {
@@ -25,7 +25,7 @@ try {
 catch (MissingPropertyException) {
     props = netscanProps
 }
- 
+
 String user = props.get("cisco.catalyst.center.user", props.get("cisco.dna.center.user"))
 String pass = props.get("cisco.catalyst.center.pass", props.get("cisco.dna.center.pass"))
 String catalystCenterHost = props.get("cisco.catalyst.center.host", props.get("cisco.dna.center.host"))
@@ -38,25 +38,25 @@ if (!pass) {
 if (!catalystCenterHost) {
     throw new Exception("Must provide cisco.catalyst.center.host to run this script.  Verify necessary properties have been provided in Netscan properties.")
 }
- 
+
 def logCacheContext = "${catalystCenterHost}::cisco-catalyst-center"
 Boolean skipDeviceDedupe = props.get("skip.device.dedupe", "false").toBoolean()
 String hostnameSource    = props.get("hostname.source", "")?.toLowerCase()?.trim()
- 
+
 Integer collectorVersion = AgentVersion.AGENT_VERSION.toInteger()
-  
-// Bail out early if we don't have the correct minimum collector version to ensure netscan runs properly
-if (collectorVersion < 32400) {
-    def formattedVer = new DecimalFormat("00.000").format(collectorVersion / 1000)
-    throw new Exception("Upgrade collector running netscan to 32.400 or higher to run full featured enhanced netscan. Currently running version ${formattedVer}.")
-}
-  
+ 
 // Bail out early if we don't have the correct minimum collector version to ensure netscan runs properly
 if (collectorVersion < 32400) {
     def formattedVer = new DecimalFormat("00.000").format(collectorVersion / 1000)
     throw new Exception("Upgrade collector running netscan to 32.400 or higher to run full featured enhanced netscan. Currently running version ${formattedVer}.")
 }
  
+// Bail out early if we don't have the correct minimum collector version to ensure netscan runs properly
+if (collectorVersion < 32400) {
+    def formattedVer = new DecimalFormat("00.000").format(collectorVersion / 1000)
+    throw new Exception("Upgrade collector running netscan to 32.400 or higher to run full featured enhanced netscan. Currently running version ${formattedVer}.")
+}
+
 def modLoader = GSH.getInstance()._getScript("Snippets", Snippets.getLoader()).withBinding(getBinding())
 def emit        = modLoader.load("lm.emit", "1")
 def lmDebugSnip = modLoader.load("lm.debug", "1")
@@ -73,7 +73,7 @@ if (!skipDeviceDedupe) {
 }
 def ciscoCatalystCenterSnip = modLoader.load("cisco.catalyst.center", "0")
 def ciscoCatalystCenter     = ciscoCatalystCenterSnip.ciscoCatalystCenterSnippetFactory(props, lmDebug, cache, http)
- 
+
 String orgDisplayname    = props.get("cisco.catalyst.center.name") ?: "Cisco Catalyst Center"
 String orgFolder         = props.get("cisco.catalyst.center.folder") ? props.get("cisco.catalyst.center.folder") + "/" : ""
 String serviceUrl        = props.get("cisco.catalyst.service.url") ?: "https://${ciscoCatalystCenter.host}/dna/intent/api/v1"
@@ -82,7 +82,7 @@ def deviceFamilies       = props.get("cisco.catalyst.center.devicefamilies")?.to
 def collectorSitesCSV    = props.get("cisco.catalyst.center.collector.sites.csv")
 def collectorSiteInfo
 if (collectorSitesCSV) collectorSiteInfo = processCollectorSiteInfoCSV(collectorSitesCSV)
- 
+
 // Get information about devices that already exist in LM portal
 List fields = ["name", "currentCollectorId", "displayName"]
 Map args = ["size": 1000, "fields": fields.join(",")]
@@ -93,7 +93,7 @@ if (!skipDeviceDedupe) {
     portalInfo = lmApi.apiCallInfo("Devices", args)
     timeLimitSec = props.get("lmapi.timelimit.sec", "60").toInteger()
     timeLimitMs = (timeLimitSec) ? Math.min(Math.max(timeLimitSec, 30), 120) * 1000 : 60000 // Allow range 30-120 sec if configured; default to 60 sec
- 
+
     if (portalInfo.timeEstimateMs > timeLimitMs) {
         lmDebug.LMDebugPrint("Estimate indicates LM API calls would take longer than time limit configured.  Proceeding with individual queries by display name for each device to add.")
         lmDebug.LMDebugPrint("\t${portalInfo}\n\tNOTE:  Time limit is set to ${timeLimitSec} seconds.  Adjust this limit by setting the property lmapi.timelimit.sec.  Max 120 seconds, min 30 seconds.")
@@ -105,9 +105,9 @@ if (!skipDeviceDedupe) {
         lmDevices = lmApi.getPortalDevices(args)
     }
 }
- 
+
 List<Map> resources = []
- 
+
 def now = new Date()
 def dateFormat = "yyyy-MM-dd'T'HH:mm:ss.s z"
 TimeZone tz = TimeZone.getDefault()
@@ -117,7 +117,7 @@ Map duplicateResources = [
     "total" : 0,
     "resources" : []
 ]
- 
+
 // Gather data from cache if running in debug otherwise make API requests
 def deviceHealth
 if (debug) {
@@ -126,18 +126,18 @@ if (debug) {
         deviceHealth = ciscoCatalystCenter.slurper.parseText(deviceHealth).values()
     } else {
         deviceHealth = ciscoCatalystCenter.httpGet("device-health")?.response
-        if (deviceHealth) deviceHealth = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(deviceHealth))       
+        if (deviceHealth) deviceHealth = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(deviceHealth))        
     }
 } else {
     deviceHealth = ciscoCatalystCenter.httpGet("device-health")?.response
     if (deviceHealth) deviceHealth = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(deviceHealth))
 }
- 
+
 // Device health data is required; we cannot proceed without it
 if (!deviceHealth) {
     throw new Exception("Error occurred during /device-health HTTP GET: ${deviceHealth}.")
 }
- 
+
 // Gather data from cache if running in debug otherwise make API requests
 def networkDevice
 if (debug) {
@@ -146,18 +146,18 @@ if (debug) {
         networkDevice = ciscoCatalystCenter.slurper.parseText(networkDevice).values()
     } else {
         networkDevice = ciscoCatalystCenter.httpGet("network-device")?.response
-        if (networkDevice) networkDevice = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(networkDevice))       
+        if (networkDevice) networkDevice = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(networkDevice))        
     }
 } else {
     networkDevice = ciscoCatalystCenter.httpGet("network-device")?.response
     if (networkDevice) networkDevice = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(networkDevice))
 }
- 
+
 // Network device data is required; we cannot proceed without it
 if (!networkDevice) {
     throw new Exception("Error occurred during /network-device HTTP GET: ${networkDevice}.")
 }
- 
+
 // Gather data from cache if running in debug otherwise make API requests
 def sites
 if (debug) {
@@ -166,51 +166,49 @@ if (debug) {
         sites = ciscoCatalystCenter.slurper.parseText(sites).values()
     } else {
         sites = ciscoCatalystCenter.httpGet("site")?.response
-        if (sites) sites = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(sites))       
+        if (sites) sites = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(sites))        
     }
 } else {
     sites = ciscoCatalystCenter.httpGet("site")?.response
     if (sites) sites = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(sites))
 }
- 
+
 // Sites data is required; we cannot proceed without it
 if (!sites) {
     throw new Exception("Error occurred during /site HTTP GET: ${sites}.")
 }
- 
+
 // Physical topology data is required; we cannot proceed without it
 def physicalTopology = ciscoCatalystCenter.httpGet("topology/physical-topology")
 if (!physicalTopology) {
     throw new Exception("Error occurred during /topology/physical-topology HTTP GET: ${physicalTopology}.")
 }
- 
+
 physicalTopology = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(physicalTopology))
 def ipToSiteId = [:]
 physicalTopology.response.nodes.each { node ->
     def ip = node.ip
-    def siteId = node.additionalInfo.siteid
+    def siteId = node.additionalInfo?.siteid
     if (ip && siteId) ipToSiteId.put(ip, siteId)
 }
- 
- 
+
+
 if (deviceFamilies) {
     deviceHealth = deviceHealth.findAll { deviceFamilies.contains(it.deviceFamily) }
-} else {
-    deviceHealth = deviceHealth.findAll { it.deviceFamily == "UNIFIED_AP" || it.deviceFamily == "WIRELESS_CONTROLLER" }
 }
- 
+
 deviceHealth.each { device ->
     def ip = device.ipAddress
     def displayName = device.name
     def siteInfo = sites.find { it.id == ipToSiteId[device.ipAddress]}
     def siteId = siteInfo?.id
     def siteName = siteInfo?.name
-     
+    
     def associatedWlcIp = networkDevice.find { it.managementIpAddress == ip }?.associatedWlcIp
- 
+
     // Verify this site should be included based on customer whitelist configuration
     if (sitesWhitelist != null && !sitesWhitelist.contains(siteId)) return
- 
+
     // Check for existing device in LM portal with this displayName; set to false initially and update to true when dupe found
     def deviceMatch = false
     // If customer has opted out of device deduplication checks, we skip the lookups where we determine if a match exists and proceed as false
@@ -239,7 +237,7 @@ deviceHealth.each { device ->
                     "Resolved" : false
                 ]
             ]
-     
+    
             // If user specified to use LM hostname on display name match, update hostname variable accordingly
             // and flag it as no longer a match since we have resolved the collision with user's input
             if (hostnameSource == "lm" || hostnameSource == "logicmonitor") {
@@ -255,7 +253,7 @@ deviceHealth.each { device ->
                 displayName = "${displayName} - ${ip}"
                 deviceMatch = false
             }
-     
+    
             duplicateResources["resources"].add(collisionInfo)
         }
         // Don't worry about matches where the hostname values are the same
@@ -264,7 +262,7 @@ deviceHealth.each { device ->
             deviceMatch = false
         }
     }
- 
+
     // Verify we have minimum requirements for device creation
     if (ip && siteId && siteName) {
         def deviceProps = [
@@ -273,25 +271,29 @@ deviceHealth.each { device ->
             "cisco.catalyst.center.pass"            : pass,
             "cisco.catalyst.center.site"            : emit.sanitizePropertyValue(siteName),
             "cisco.catalyst.center.site.id"         : emit.sanitizePropertyValue(siteId)        ]
- 
+
         if (device.deviceFamily == "UNIFIED_AP") {
             deviceProps.put("system.categories", "CiscoCatalystAccessPoint")
             deviceProps.put("cisco.catalyst.center.associatedWlcIp", emit.sanitizePropertyValue(associatedWlcIp))
         } else if (device.deviceFamily == "WIRELESS_CONTROLLER") {
             deviceProps.put("system.categories", "CiscoCatalystWLC")
+        } else if (device.deviceFamily == "SWITCHES_AND_HUBS") {
+            deviceProps.put("system.categories", "CiscoCatalystSwitch")
+        } else if (device.deviceFamily == "ROUTERS") {
+            deviceProps.put("system.categories", "CiscoCatalystRouter")
         }
- 
+
         if (device.location) {
             try {
                 def address = device.location.tokenize("/")[-2..-1]?.join(" ")?.tokenize("-")[1..-1]?.join(" ")
-                if (address) deviceProps.put("location", address)   
+                if (address) deviceProps.put("location", address)    
             } catch (Exception e) {
                 lmDebug.LMDebugPrint("Exception parsing address: ${e}")
             }
         }
- 
+
         if (sitesWhitelist != null) deviceProps.put("cisco.catalyst.center.sites", emit.sanitizePropertyValue(sitesWhitelist))
- 
+
         // Set group and collector ID based on user CSV inputs if provided
         def collectorId
         Map resource
@@ -315,28 +317,28 @@ deviceHealth.each { device ->
             ]
             resources.add(resource)
         }
- 
+
         // Only add the collectorId field to resource map if we found a collector ID above
         if (collectorId) {
             resource["collectorId"] = collectorId
             duplicateResources["resources"][displayName]["Netscan"][0]["collectorId"] = collectorId
         }
- 
+
         if (!deviceMatch) {
             resources.add(resource)
         }
     }
 }
- 
+
 lmDebug.LMDebugPrint("Duplicate Resources:")
 duplicateResources.resources.each {
     lmDebug.LMDebugPrint("\t${it}")
 }
- 
-emit.resource(resources, lmDebug)
- 
+
+emit.resource(resources, debug)
+
 return 0
- 
+
 /**
  * Processes a CSV with headers collector id, folder, and site
  * @param filename String
@@ -347,7 +349,7 @@ Map processCollectorSiteInfoCSV(String filename) {
     def csv = newFile(filename, "csv")
     def rows = csv.readLines()*.split(",")
     def collectorInfo = [:]
- 
+
     // Verify whether headers are present and expected values
     // Sanitize for casing and extra whitespaces while gathering headers
     def maybeHeaders = rows[0]*.toLowerCase()*.trim()
@@ -360,7 +362,7 @@ Map processCollectorSiteInfoCSV(String filename) {
         def ni = headerIndices["site"]
         def ci = headerIndices["collector id"]
         def fi = headerIndices["folder"]
- 
+
         // Remove headers from dataset
         def data = rows[1..-1]
         // Build a map indexed by site for easy lookups later
@@ -375,10 +377,10 @@ Map processCollectorSiteInfoCSV(String filename) {
     else {
         throw new Exception(" Required headers not provided in CSV.  Please provide \"Collector ID\", \"Network Organization Device Name\", \"Folder Name, \"and Network (case insensitive).  Headers provided: \"${rows[0]}\"")
     }
- 
+
     return collectorInfo
 }
- 
+
 /**
  * Sanitizes filepath and instantiates File object
  * @param filename String
@@ -394,6 +396,6 @@ File newFile(String filename, String fileExtension) {
     if (!filepath.endsWith(".${fileExtension}")) {
         filepath = "${filepath}.${fileExtension}"
     }
- 
+
     return new File(filepath)
 }

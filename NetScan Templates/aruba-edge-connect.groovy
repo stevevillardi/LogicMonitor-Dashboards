@@ -202,7 +202,7 @@ appliancesData?.each { device ->
 }
 
 // Output validated data in JSON format
-lmEmit.resource(resources, lmDebug)
+lmEmit.resource(resources, debug)
 
 // Report devices that already exist in LM via log file named after root folder
 if (duplicateResources["resources"].size() > 0) {
