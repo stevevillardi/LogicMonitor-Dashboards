@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<feed  version="1.0" hasPendingRequests="false" >
+  <company></company>
+  <status>200</status>
+  <errmsg>OK</errmsg>
+  <interval>0</interval>
+    <entry type="predatasource">
+        <version>1665008274</version>
+        <name>Force Active Discovery</name>
+        <displayedas>Force Active Discovery</displayedas>
+        <description>Searches for devices in Minimal Monitoring that match specific criteria and force Active Discovery via the LogicMonitor API.</description>
+        <collector>script</collector>
+        <hasMultiInstances>false</hasMultiInstances>
+        <useWildValueAsUniqueIdentifier>false</useWildValueAsUniqueIdentifier>
+        <schedule>300</schedule>
+        <appliesTo>(auto.lm_cred_tester.snmp.match == &#34;True&#34; &#38;&#38; auto.lm_cred_tester.snmp.name &#38;&#38; contains(system.groups, &#34;Minimal Monitoring&#34;)) ||
+join(system.groups,&#34;,&#34;) =~ &#34;&#60;path/to/import/group&#62;&#34;</appliesTo>
+        <wildcardauto>false</wildcardauto>
+        <wildcardpersist>false</wildcardpersist>
+        <wildcardlinuxscript></wildcardlinuxscript>
+        <wildcardlinuxcmdline></wildcardlinuxcmdline>
+        <wildcardwinscript></wildcardwinscript>
+        <wildcardwincmdline></wildcardwincmdline>
+        <wildcardgroovyscript></wildcardgroovyscript>
+        <wildcardschedule>1440</wildcardschedule>
+        <wildcarddisable>false</wildcarddisable>
+        <wildcarddeleteinactive>false</wildcarddeleteinactive>
+        <agdmethod>none</agdmethod>
+        <agdparams></agdparams>
+        <group>LMPS</group>
+        <tags></tags>
+        <technology>Requires the following common properties to be set:
+lmaccess.id: API token ID with permissions to manage devices.
+lmaccess.key: API token key with permissions to manage devices.
+lmaccount: (optional) the name of this LogicMonitor portal. If not set it&#39;ll be automatically discovered.
+
+The applies to configuration must be updated with the path for the import group.</technology>
+        <adlist><![CDATA[{"agdmethod":"none","agdparams":"","id":0,"filters":[],"params":{}}]]></adlist>
+        <schemaVersion>2</schemaVersion>
+        <dataSourceType>1</dataSourceType>
+        <attributes>
+        <attribute>
+            <name>scripttype</name>
+            <value>embed</value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>scriptgroovy</name>
+            <value>/*******************************************************************************
+ * © 2007-2021 - LogicMonitor, Inc. All rights reserved.
+ ******************************************************************************/
+
+import groovy.json.JsonSlurper
+import com.santaba.agent.util.Settings
+import com.santaba.agent.live.LiveHostSet
+import org.apache.commons.codec.binary.Hex
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
+import java.security.MessageDigest
+
+
+String apiId = hostProps.get(&#34;lmaccess.id&#34;)?:hostProps.get(&#34;logicmonitor.access.id&#34;)
+String apiKey = hostProps.get(&#34;lmaccess.key&#34;)?:hostProps.get(&#34;logicmonitor.access.key&#34;)
+def deviceID = hostProps.get(&#34;system.deviceId&#34;)
+def portalName = hostProps.get(&#34;lmaccount&#34;)?:Settings.getSetting(Settings.AGENT_COMPANY)
+def collectorProxy = Settings.getSetting(&#34;proxy.enable&#34;).toBoolean()
+Map proxyInfo = [:]
+
+if (collectorProxy) {
+	proxyInfo = [
+		enabled : true,
+		host : Settings.getSetting(&#34;proxy.host&#34;),
+		port : Settings.getSetting(&#34;proxy.port&#34;),
+		user : Settings.getSetting(&#34;proxy.user&#34;),
+		pass : Settings.getSetting(&#34;proxy.pass&#34;)
+	]
+
+	proxyInfo[&#34;proxy&#34;] = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyInfo.host, proxyInfo.port.toInteger()))
+}
+
+// def users = apiGetManyV2(portalName, apiId, apiKey, &#34;/setting/admins&#34;, proxyInfo, [&#39;size&#39;:1000])
+// def userSummary = apiGetV2(portalName, apiId, apiKey, &#34;/metrics/summary&#34;, proxyInfo, null)
+def forceAD = apiPostV2(portalName, apiId, apiKey, &#34;/device/devices/${deviceID}/scheduleAutoDiscovery&#34;, proxyInfo, null)
+
+println &#34;responseCode=${forceAD}&#34;
+
+// If script gets to this point, collector should consider this device alive
+keepAlive(hostProps)
+
+return 0
+
+
+/* Paginated GET method. Returns a list of objects. */
+List apiGetManyV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+
+	def pageSize = args.get(&#39;size&#39;, 1000) // Default the page size to 1000 if not specified.
+	List items = []
+
+	args[&#39;size&#39;] = pageSize
+
+	def pageCount = 0
+	while (true) {
+		pageCount += 1
+
+		// Updated the args
+		args[&#39;size&#39;] = pageSize
+		args[&#39;offset&#39;] = items.size()
+
+		def response = apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
+		if (response.get(&#34;errmsg&#34;, &#34;OK&#34;) != &#34;OK&#34;) {
+			throw new Exception(&#34;Santaba returned errormsg: ${payload?.errmsg}&#34;)
+		}
+		items.addAll(response.items)
+
+		// If we recieved less than we asked for it means we are done
+		if (response.items.size() &#60; pageSize) break
+	}
+	return items
+}
+
+
+/* Simple GET, returns a parsed json payload. No processing. */
+def apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+	def request = rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
+	if (request.getResponseCode() == 200) {
+		def payload = new JsonSlurper().parseText(request.content.text)
+		return payload
+	}
+	else {
+		throw new Exception(&#34;Server return HTTP code ${request.getResponseCode()}&#34;)
+	}
+}
+
+
+/* Raw GET method. */
+def rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+	def auth = generateAuth(apiId, apiKey, endPoint)
+	def headers = [&#34;Authorization&#34;: auth, &#34;Content-Type&#34;: &#34;application/json&#34;, &#34;X-Version&#34;:&#34;2&#34;, &#34;External-User&#34;:&#34;true&#34;]
+	def url = &#34;https://${portalName}.logicmonitor.com/santaba/rest${endPoint}&#34;
+
+	if (args) {
+		def encodedArgs = []
+		args.each{ k,v -&#62;
+			encodedArgs &#60;&#60; &#34;${k}=${java.net.URLEncoder.encode(v.toString(), &#34;UTF-8&#34;)}&#34;
+		}
+		url += &#34;?${encodedArgs.join(&#39;&#38;&#39;)}&#34;
+	}
+
+	def request
+	if (proxyInfo.enabled) {
+		request = url.toURL().openConnection(proxyInfo.proxy)
+	}
+	else {
+		request = url.toURL().openConnection()
+	}
+	request.setRequestMethod(&#34;GET&#34;)
+	request.setDoOutput(true)
+	headers.each{ k,v -&#62;
+		request.addRequestProperty(k, v)
+	}
+
+	return request
+}
+
+
+/* Simple POST, returns a parsed json payload. No processing. */
+def apiPostV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+	def request = rawPostV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
+	return request.getResponseCode()
+	// if (request.getResponseCode() == 200) {
+	// 	def payload = new JsonSlurper().parseText(request.content.text)
+	// 	return payload
+	// } else {
+	// 	throw new Exception(&#34;Server return HTTP code ${request.getResponseCode()}&#34;)
+	// }
+}
+
+
+/* Raw POST method. */
+def rawPostV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+	def operation = &#34;POST&#34;
+	def auth = generateAuth(apiId, apiKey, endPoint, operation)
+	def headers = [&#34;Authorization&#34;: auth, &#34;Content-Type&#34;: &#34;application/json&#34;, &#34;X-Version&#34;:&#34;2&#34;, &#34;External-User&#34;:&#34;true&#34;]
+	def url = &#34;https://${portalName}.logicmonitor.com/santaba/rest${endPoint}&#34;
+
+	if (args) {
+		def encodedArgs = []
+		args.each{ k,v -&#62;
+			encodedArgs &#60;&#60; &#34;${k}=${java.net.URLEncoder.encode(v.toString(), &#34;UTF-8&#34;)}&#34;
+		}
+		url += &#34;?${encodedArgs.join(&#39;&#38;&#39;)}&#34;
+	}
+
+	def request
+	if (proxyInfo.enabled) {
+		request = url.toURL().openConnection(proxyInfo.proxy)
+	}
+	else {
+		request = url.toURL().openConnection()
+	}
+	request.setRequestMethod(operation)
+	// request.setDoOutput(true)
+	headers.each{ k,v -&#62;
+		request.addRequestProperty(k, v)
+	}
+
+	return request
+}
+
+
+/* Generate auth for API calls. */
+static String generateAuth(id, key, path, operation) {
+	Long epoch_time = System.currentTimeMillis()
+	Mac hmac = Mac.getInstance(&#34;HmacSHA256&#34;)
+	hmac.init(new SecretKeySpec(key.getBytes(), &#34;HmacSHA256&#34;))
+	def signature = Hex.encodeHexString(hmac.doFinal(&#34;${operation}${epoch_time}${path}&#34;.getBytes())).bytes.encodeBase64()
+
+	return &#34;LMv1 ${id}:${signature}:${epoch_time}&#34;
+}
+
+
+/* Helper method to remind the collector this device is not dead */
+def keepAlive(hostProps) {
+	// Update the liveHost set so tell the collector we are happy.
+	hostId = hostProps.get(&#34;system.deviceId&#34;).toInteger()
+	def liveHostSet =  LiveHostSet.getInstance()
+	liveHostSet.flag(hostId)
+}</value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>windowsscript</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>linuxscript</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>windowscmdline</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>linuxcmdline</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        <attribute>
+            <name>properties</name>
+            <value></value>
+            <comment></comment>
+        </attribute>
+        </attributes>
+        <datapoints>
+        <datapoint>
+            <name>responseCode</name>
+            <originId>TsgIye4NRXS14KATXxB97Q</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>responseCode</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        </datapoints>
+        <graphs>
+        </graphs>
+        <overviewgraphs>
+        </overviewgraphs>
+        <scripts>
+        </scripts>
+    </entry>
+</feed>
