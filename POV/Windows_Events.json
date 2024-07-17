@@ -1,0 +1,75 @@
+{
+  "collectionMethod": "wineventlog",
+  "resourceMapping": [
+    {
+      "originId": "CPRjiondSVqlLO4X0cdrmQ",
+      "method": "Token",
+      "comment": "",
+      "value": "##system.deviceId##",
+      "key": "system.deviceId"
+    }
+  ],
+  "searchKeywords": "",
+  "description": "Default LogSource to ingest windows events as logs",
+  "appliesTo": "isWindows()",
+  "collectionAttrs": {
+    "resourceMappingOp": "OR"
+  },
+  "type": 10,
+  "technicalNotes": "https://www.logicmonitor.com/support/windows-event-logging-logsource-configuration",
+  "version": 1721252857,
+  "registryMetadata": {
+    "currentUuid": "2bF5msXETQe8QXHDsdYj4g",
+    "originalUuid": "2bF5msXETQe8QXHDsdYj4g",
+    "locatorId": "",
+    "authorCompanyUuid": "1c0ca6ae-b3a2-4a08-9809-5935c90e4a1d",
+    "registryVersion": "1.0.0",
+    "checksum": "",
+    "namespace": "",
+    "registryId": ""
+  },
+  "logFields": [
+    {
+      "originId": "F3CmYRpwRQ2nyIdo7kquRQ",
+      "method": "Attribute",
+      "comment": "",
+      "value": "Level",
+      "key": "log_level"
+    },
+    {
+      "originId": "GjitVvM7QtW0SzJno-rxYA",
+      "method": "Attribute",
+      "comment": "",
+      "value": "SourceName",
+      "key": "source"
+    },
+    {
+      "originId": "E1xywMluQ_O0LMOAGdKTzw",
+      "method": "Attribute",
+      "comment": "",
+      "value": "EventId",
+      "key": "event_id"
+    },
+    {
+      "originId": "krVdmsOlRHubH4AiZyCmog",
+      "method": "Attribute",
+      "comment": "",
+      "value": "LogName",
+      "key": "channel"
+    }
+  ],
+  "name": "Windows_Events",
+  "collectionInterval": 60,
+  "group": "",
+  "headers": {
+    "cache-control": "no-cache, no-store",
+    "content-disposition": "attachment; filename=\"Windows_Events.json\"",
+    "content-length": "1212",
+    "content-type": "application/json",
+    "date": "Wed, 17 Jul 2024 21:47:42 GMT",
+    "server": "LM",
+    "strict-transport-security": "max-age=31536000; includeSubDomains",
+    "x-content-type-options": "nosniff",
+    "x-server-version": "207-4"
+  }
+}
