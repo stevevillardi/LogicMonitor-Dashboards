@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<feed  version="1.0" hasPendingRequests="false" >
+  <company></company>
+  <status>200</status>
+  <errmsg>OK</errmsg>
+  <interval>0</interval>
+  <isCollectorPublisherEnabled>false</isCollectorPublisherEnabled>
+<entry type="prelogsource">
+<version>1721252857</version>
+<name>Windows_Events</name>
+<description>Default LogSource to ingest windows events as logs</description>
+<group></group>
+<appliesto>isWindows()</appliesto>
+<collector>wineventlog</collector>
+<tags></tags>
+<technology>https://www.logicmonitor.com/support/windows-event-logging-logsource-configuration</technology>
+<collectionInterval>60</collectionInterval>
+<schemaVersion>1</schemaVersion>
+<registryVersion>1.0.0</registryVersion>
+<authorCompanyUuid>1c0ca6ae-b3a2-4a08-9809-5935c90e4a1d</authorCompanyUuid>
+<currentUuid>2bF5msXETQe8QXHDsdYj4g</currentUuid>
+<originalUuid>2bF5msXETQe8QXHDsdYj4g</originalUuid>
+<params>
+<prelogsourceparam>
+<name>resourceMappingOp</name>
+<value>OR</value>
+<comment></comment>
+</prelogsourceparam>
+<prelogsourceparam>
+<name>filterOperator</name>
+<value>null</value>
+<comment></comment>
+</prelogsourceparam>
+</params>
+<filters>
+</filters>
+        <scripts>
+        </scripts>
+<logFields>
+<prelogsourcelogField>
+<key>log_level</key>
+<value>Level</value>
+<comment></comment>
+<method>Attribute</method>
+</prelogsourcelogField>
+<prelogsourcelogField>
+<key>source</key>
+<value>SourceName</value>
+<comment></comment>
+<method>Attribute</method>
+</prelogsourcelogField>
+<prelogsourcelogField>
+<key>event_id</key>
+<value>EventId</value>
+<comment></comment>
+<method>Attribute</method>
+</prelogsourcelogField>
+<prelogsourcelogField>
+<key>channel</key>
+<value>LogName</value>
+<comment></comment>
+<method>Attribute</method>
+</prelogsourcelogField>
+</logFields>
+<resourcemappings>
+<prelogsourceresourcemapping>
+<key>system.deviceId</key>
+<value>##system.deviceId##</value>
+<method>Token</method>
+<comment></comment>
+</prelogsourceresourcemapping>
+</resourcemappings>
+</entry>
+</feed>
