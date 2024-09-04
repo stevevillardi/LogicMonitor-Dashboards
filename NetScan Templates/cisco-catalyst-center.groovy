@@ -44,13 +44,13 @@ Boolean skipDeviceDedupe = props.get("skip.device.dedupe", "false").toBoolean()
 String hostnameSource    = props.get("hostname.source", "")?.toLowerCase()?.trim()
 
 Integer collectorVersion = AgentVersion.AGENT_VERSION.toInteger()
- 
+
 // Bail out early if we don't have the correct minimum collector version to ensure netscan runs properly
 if (collectorVersion < 32400) {
     def formattedVer = new DecimalFormat("00.000").format(collectorVersion / 1000)
     throw new Exception("Upgrade collector running netscan to 32.400 or higher to run full featured enhanced netscan. Currently running version ${formattedVer}.")
 }
- 
+
 // Bail out early if we don't have the correct minimum collector version to ensure netscan runs properly
 if (collectorVersion < 32400) {
     def formattedVer = new DecimalFormat("00.000").format(collectorVersion / 1000)
@@ -112,10 +112,10 @@ def now = new Date()
 def dateFormat = "yyyy-MM-dd'T'HH:mm:ss.s z"
 TimeZone tz = TimeZone.getDefault()
 Map duplicateResources = [
-    "date" : now.format(dateFormat, tz),
-    "message" : "Duplicate device names and display names, keyed by display name that would be assigned by the netscan, found within LogicMonitor portal.  Refer to documentation for how to resolve name collisions using 'hostname.source' netscan property.",    "total" : 0,
-    "total" : 0,
-    "resources" : []
+        "date" : now.format(dateFormat, tz),
+        "message" : "Duplicate device names and display names, keyed by display name that would be assigned by the netscan, found within LogicMonitor portal.  Refer to documentation for how to resolve name collisions using 'hostname.source' netscan property.",    "total" : 0,
+        "total" : 0,
+        "resources" : []
 ]
 
 // Gather data from cache if running in debug otherwise make API requests
@@ -126,7 +126,7 @@ if (debug) {
         deviceHealth = ciscoCatalystCenter.slurper.parseText(deviceHealth).values()
     } else {
         deviceHealth = ciscoCatalystCenter.httpGet("device-health")?.response
-        if (deviceHealth) deviceHealth = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(deviceHealth))        
+        if (deviceHealth) deviceHealth = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(deviceHealth))
     }
 } else {
     deviceHealth = ciscoCatalystCenter.httpGet("device-health")?.response
@@ -146,7 +146,7 @@ if (debug) {
         networkDevice = ciscoCatalystCenter.slurper.parseText(networkDevice).values()
     } else {
         networkDevice = ciscoCatalystCenter.httpGet("network-device")?.response
-        if (networkDevice) networkDevice = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(networkDevice))        
+        if (networkDevice) networkDevice = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(networkDevice))
     }
 } else {
     networkDevice = ciscoCatalystCenter.httpGet("network-device")?.response
@@ -166,7 +166,7 @@ if (debug) {
         sites = ciscoCatalystCenter.slurper.parseText(sites).values()
     } else {
         sites = ciscoCatalystCenter.httpGet("site")?.response
-        if (sites) sites = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(sites))        
+        if (sites) sites = ciscoCatalystCenter.slurper.parseText(JsonOutput.toJson(sites))
     }
 } else {
     sites = ciscoCatalystCenter.httpGet("site")?.response
@@ -203,129 +203,131 @@ deviceHealth.each { device ->
     def siteInfo = sites.find { it.id == ipToSiteId[device.ipAddress]}
     def siteId = siteInfo?.id
     def siteName = siteInfo?.name
-    
+
     def associatedWlcIp = networkDevice.find { it.managementIpAddress == ip }?.associatedWlcIp
 
-    // Verify this site should be included based on customer whitelist configuration
-    if (sitesWhitelist != null && !sitesWhitelist.contains(siteId)) return
+    if (displayName) {
+        // Verify this site should be included based on customer whitelist configuration
+        if (sitesWhitelist != null && !sitesWhitelist.contains(siteId)) return
 
-    // Check for existing device in LM portal with this displayName; set to false initially and update to true when dupe found
-    def deviceMatch = false
-    // If customer has opted out of device deduplication checks, we skip the lookups where we determine if a match exists and proceed as false
-    if (!skipDeviceDedupe) {
-        if (pathFlag == "ind") {
-            deviceMatch = lmApi.findPortalDevice(displayName, args)
-            if (!deviceMatch) deviceMatch = lmApi.findPortalDeviceByName(ip, args)
+        // Check for existing device in LM portal with this displayName; set to false initially and update to true when dupe found
+        def deviceMatch = false
+        // If customer has opted out of device deduplication checks, we skip the lookups where we determine if a match exists and proceed as false
+        if (!skipDeviceDedupe) {
+            if (pathFlag == "ind") {
+                deviceMatch = lmApi.findPortalDevice(displayName, args)
+                if (!deviceMatch) deviceMatch = lmApi.findPortalDeviceByName(ip, args)
+            }
+            else if (pathFlag == "all") {
+                deviceMatch = lmApi.checkExistingDevices(displayName, lmDevices)
+                if (!deviceMatch) deviceMatch = lmApi.checkExistingDevicesByName(ip, lmDevices)
+            }
         }
-        else if (pathFlag == "all") {
-            deviceMatch = lmApi.checkExistingDevices(displayName, lmDevices)
-            if (!deviceMatch) deviceMatch = lmApi.checkExistingDevicesByName(ip, lmDevices)
-        }
-    }
-    if (deviceMatch) {
-        // Log duplicates that would cause additional devices to be created; unless these entries are resolved, they will not be added to resources for netscan output
-        if (ip != deviceMatch.name) {
-            def collisionInfo = [
-                (displayName) : [
-                    "Netscan" : [
-                        "hostname"    : ip
-                    ],
-                    "LM" : [
-                        "hostname"    : deviceMatch.name,
-                        "collectorId" : deviceMatch.currentCollectorId
-                    ],
-                    "Resolved" : false
+        if (deviceMatch) {
+            // Log duplicates that would cause additional devices to be created; unless these entries are resolved, they will not be added to resources for netscan output
+            if (ip != deviceMatch.name) {
+                def collisionInfo = [
+                        (displayName) : [
+                                "Netscan" : [
+                                        "hostname"    : ip
+                                ],
+                                "LM" : [
+                                        "hostname"    : deviceMatch.name,
+                                        "collectorId" : deviceMatch.currentCollectorId
+                                ],
+                                "Resolved" : false
+                        ]
                 ]
-            ]
-    
-            // If user specified to use LM hostname on display name match, update hostname variable accordingly
-            // and flag it as no longer a match since we have resolved the collision with user's input
-            if (hostnameSource == "lm" || hostnameSource == "logicmonitor") {
-                ip = deviceMatch.name
+
+                // If user specified to use LM hostname on display name match, update hostname variable accordingly
+                // and flag it as no longer a match since we have resolved the collision with user's input
+                if (hostnameSource == "lm" || hostnameSource == "logicmonitor") {
+                    ip = deviceMatch.name
+                    deviceMatch = false
+                    collisionInfo[displayName]["Resolved"] = true
+                }
+                // If user specified to use netscan data for hostname, update the display name to make it unique
+                // and flag it as no longer a match since we have resolved the collision with user's input
+                else if (hostnameSource == "netscan") {
+                    // Update the resolved status before we change the displayName
+                    collisionInfo[displayName]["Resolved"] = true
+                    displayName = "${displayName} - ${ip}"
+                    deviceMatch = false
+                }
+
+                duplicateResources["resources"].add(collisionInfo)
+            }
+            // Don't worry about matches where the hostname values are the same
+            // These will update via normal netscan processing and should be ignored
+            else {
                 deviceMatch = false
-                collisionInfo[displayName]["Resolved"] = true
-            }
-            // If user specified to use netscan data for hostname, update the display name to make it unique
-            // and flag it as no longer a match since we have resolved the collision with user's input
-            else if (hostnameSource == "netscan") {
-                // Update the resolved status before we change the displayName
-                collisionInfo[displayName]["Resolved"] = true
-                displayName = "${displayName} - ${ip}"
-                deviceMatch = false
-            }
-    
-            duplicateResources["resources"].add(collisionInfo)
-        }
-        // Don't worry about matches where the hostname values are the same
-        // These will update via normal netscan processing and should be ignored
-        else {
-            deviceMatch = false
-        }
-    }
-
-    // Verify we have minimum requirements for device creation
-    if (ip && siteId && siteName) {
-        def deviceProps = [
-            "cisco.catalyst.center.host"            : catalystCenterHost,
-            "cisco.catalyst.center.user"            : user,
-            "cisco.catalyst.center.pass"            : pass,
-            "cisco.catalyst.center.site"            : emit.sanitizePropertyValue(siteName),
-            "cisco.catalyst.center.site.id"         : emit.sanitizePropertyValue(siteId)        ]
-
-        if (device.deviceFamily == "UNIFIED_AP") {
-            deviceProps.put("system.categories", "CiscoCatalystAccessPoint")
-            deviceProps.put("cisco.catalyst.center.associatedWlcIp", emit.sanitizePropertyValue(associatedWlcIp))
-        } else if (device.deviceFamily == "WIRELESS_CONTROLLER") {
-            deviceProps.put("system.categories", "CiscoCatalystWLC")
-        } else if (device.deviceFamily == "SWITCHES_AND_HUBS") {
-            deviceProps.put("system.categories", "CiscoCatalystSwitch")
-        } else if (device.deviceFamily == "ROUTERS") {
-            deviceProps.put("system.categories", "CiscoCatalystRouter")
-        }
-
-        if (device.location) {
-            try {
-                def address = device.location.tokenize("/")[-2..-1]?.join(" ")?.tokenize("-")[1..-1]?.join(" ")
-                if (address) deviceProps.put("location", address)    
-            } catch (Exception e) {
-                lmDebug.LMDebugPrint("Exception parsing address: ${e}")
             }
         }
 
-        if (sitesWhitelist != null) deviceProps.put("cisco.catalyst.center.sites", emit.sanitizePropertyValue(sitesWhitelist))
+        // Verify we have minimum requirements for device creation
+        if (ip && siteId && siteName) {
+            def deviceProps = [
+                    "cisco.catalyst.center.host"            : catalystCenterHost,
+                    "cisco.catalyst.center.user"            : user,
+                    "cisco.catalyst.center.pass"            : pass,
+                    "cisco.catalyst.center.site"            : emit.sanitizePropertyValue(siteName),
+                    "cisco.catalyst.center.site.id"         : emit.sanitizePropertyValue(siteId)        ]
 
-        // Set group and collector ID based on user CSV inputs if provided
-        def collectorId
-        Map resource
-        if (collectorSiteInfo) {
-            collectorId = collectorSiteInfo[siteId]["collectorId"]
-            def folder      = collectorSiteInfo[siteId]["folder"]
-            resource = [
-                "hostname"    : ip,
-                "displayname" : displayName,
-                "hostProps"   : deviceProps,
-                "groupName"   : ["${orgFolder}${folder}/${siteName}"],
-                "collectorId" : collectorId
-            ]
-            resources.add(resource)
-        } else {
-            resource = [
-                "hostname"    : ip,
-                "displayname" : displayName,
-                "hostProps"   : deviceProps,
-                "groupName"   : ["${orgFolder}${orgDisplayname}/${siteName}"]
-            ]
-            resources.add(resource)
-        }
+            if (device.deviceFamily == "UNIFIED_AP") {
+                deviceProps.put("system.categories", "CiscoCatalystAccessPoint")
+                deviceProps.put("cisco.catalyst.center.associatedWlcIp", emit.sanitizePropertyValue(associatedWlcIp))
+            } else if (device.deviceFamily == "WIRELESS_CONTROLLER") {
+                deviceProps.put("system.categories", "CiscoCatalystWLC")
+            } else if (device.deviceFamily == "SWITCHES_AND_HUBS") {
+                deviceProps.put("system.categories", "CiscoCatalystSwitch")
+            } else if (device.deviceFamily == "ROUTERS") {
+                deviceProps.put("system.categories", "CiscoCatalystRouter")
+            }
 
-        // Only add the collectorId field to resource map if we found a collector ID above
-        if (collectorId) {
-            resource["collectorId"] = collectorId
-            duplicateResources["resources"][displayName]["Netscan"][0]["collectorId"] = collectorId
-        }
+            if (device.location) {
+                try {
+                    def address = device.location.tokenize("/")[-2..-1]?.join(" ")?.tokenize("-")[1..-1]?.join(" ")
+                    if (address) deviceProps.put("location", address)
+                } catch (Exception e) {
+                    lmDebug.LMDebugPrint("Exception parsing address: ${e}")
+                }
+            }
 
-        if (!deviceMatch) {
-            resources.add(resource)
+            if (sitesWhitelist != null) deviceProps.put("cisco.catalyst.center.sites", emit.sanitizePropertyValue(sitesWhitelist))
+
+            // Set group and collector ID based on user CSV inputs if provided
+            def collectorId
+            Map resource
+            if (collectorSiteInfo) {
+                collectorId = collectorSiteInfo[siteId]["collectorId"]
+                def folder      = collectorSiteInfo[siteId]["folder"]
+                resource = [
+                        "hostname"    : ip,
+                        "displayname" : displayName,
+                        "hostProps"   : deviceProps,
+                        "groupName"   : ["${orgFolder}${folder}/${siteName}"],
+                        "collectorId" : collectorId
+                ]
+                resources.add(resource)
+            } else {
+                resource = [
+                        "hostname"    : ip,
+                        "displayname" : displayName,
+                        "hostProps"   : deviceProps,
+                        "groupName"   : ["${orgFolder}${orgDisplayname}/${siteName}"]
+                ]
+                resources.add(resource)
+            }
+
+            // Only add the collectorId field to resource map if we found a collector ID above
+            if (collectorId) {
+                resource["collectorId"] = collectorId
+                duplicateResources["resources"][displayName]["Netscan"][0]["collectorId"] = collectorId
+            }
+
+            if (!deviceMatch) {
+                resources.add(resource)
+            }
         }
     }
 }

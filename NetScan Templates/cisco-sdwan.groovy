@@ -1,5 +1,5 @@
 /*******************************************************************************
- * © 2007-2023 - LogicMonitor, Inc. All rights reserved.
+ * © 2007-2024 - LogicMonitor, Inc. All rights reserved.
  ******************************************************************************/
 
 import com.logicmonitor.common.sse.utils.GroovyScriptHelper as GSH
@@ -11,8 +11,6 @@ import groovy.json.JsonSlurper
 
 // To run in debug mode, set to true
 def debug = false
-// To save collector logs, set to true
-Boolean log = false
 
 Integer collectorVersion = AgentVersion.AGENT_VERSION.toInteger()
 String vManageHost, vManageName, rootFolder, sites, host, user, pass, csvFile
@@ -32,7 +30,6 @@ catch (MissingPropertyException) {
 
 vManageHost = props.get("cisco.sdwan.vmanagehost") // required
 def cleanedvManageHost = vManageHost?.replaceAll(":","_") // replace : if found since it's a delimiter
-def logCacheContext = "cisco-sdwan" + "_" + cleanedvManageHost// used in keys also
 
 user = props.get("cisco.sdwan.user") // required
 pass = props.get("cisco.sdwan.pass") // required
@@ -45,19 +42,15 @@ if (!user || !pass || !vManageHost) {
 vManageName = props.get("cisco.sdwan.manager.name", "Cisco vManage")
 rootFolder = props.get("cisco.sdwan.folder", "Cisco Catalyst SDWAN")
 port = (props.get("cisco.sdwan.port", props.get("vmanage.port", "8443"))).toInteger()
+Boolean skipDeviceDedupe = props.get("skip.device.dedupe", "false").toBoolean()
+String hostnameSource    = props.get("hostname.source", "")?.toLowerCase()?.trim()
+statisticsLookBack = (props.get("cisco.sdwan.statisticslookback", "60")).toInteger()
+
 
 // CSV file containing headers "Collector ID", "Region Folder", "Site ID" and "Site Name" to customize collector assignment and group names created
 // Save in /usr/local/logicmonitor/agent/bin directory (Linux)
 // or C:\Program Files\LogicMonitor\Agent\bin directory (Windows)
 csvFile = props.get("cisco.sdwan.sites.csv", null)
-String cacheFilename = "Cisco_Catalyst_SDWAN_${vManageHost}_devices"
-statisticsLookBack = (props.get("cisco.sdwan.statisticslookback", "60")).toInteger()
-String hostnameSource = props.get("hostname.source")?.toLowerCase()?.trim() ?: ""
-
-Map sensitiveProps = [
-        "cisco.sdwan.user" : user,
-        "cisco.sdwan.pass" : pass,
-]
 
 // Bail out early if we don't have the correct minimum collector version to ensure netscan runs properly
 if (collectorVersion < 32400) {
@@ -72,26 +65,49 @@ Map siteInfo = (csvFile) ? processCollectorSiteInfoCSV(csvFile) : null
 def modLoader = GSH.getInstance()._getScript("Snippets", Snippets.getLoader()).withBinding(getBinding())
 def emit = modLoader.load("lm.emit", "1.1")
 def lmDebugSnip = modLoader.load("lm.debug", "1")
-def lmDebug = lmDebugSnip.debugSnippetFactory(out, debug, log, logCacheContext)
+def lmDebug = lmDebugSnip.debugSnippetFactory(out, debug)
 def cacheSnip = modLoader.load("lm.cache", "0")
-def cache = cacheSnip.cacheSnippetFactory(lmDebug, logCacheContext)
+def cache = cacheSnip.cacheSnippetFactory(lmDebug)
 def httpSnippet = modLoader.load("proto.http", "0")
 def http = httpSnippet.httpSnippetFactory(props)
-def lmApiSnippet = modLoader.load("lm.api", "0")
-def lmApi = lmApiSnippet.lmApiSnippetFactory(props, http, lmDebug)
 def ciscoSDWANSnippet = modLoader.load("cisco.sdwan", "0")
 def ciscoSDWAN = ciscoSDWANSnippet.ciscoSDWANSnippetFactory(props, lmDebug, cache, http)
+
+// Only initialize lmApi snippet class if customer has not opted out
+def lmApi
+if (!skipDeviceDedupe) {
+    def lmApiSnippet = modLoader.load("lm.api", "0")
+    lmApi = lmApiSnippet.lmApiSnippetFactory(props, http, lmDebug)
+}
 
 def sessionIdKey = "${vManageHost}:sessionId"
 def csrfTokenKey = "${vManageHost}:csrfToken"
 def response
 def testSessionId = ciscoSDWAN.cache.cacheGet(sessionIdKey)
-def siteAllowList = props.get("cisco.sdwan.allowedsites", null)?.tokenize(",")?.collect{ it.trim() }
+def siteAllowList = props.get("cisco.sdwan.allowedsites", null)?.tokenize(",")?.collect { it.trim() }
 
 // Get information about devices that already exist in LM portal
 List fields = ["name", "currentCollectorId", "displayName"]
 Map args = ["size": 1000, "fields": fields.join(",")]
-def lmDevices = lmApi.getPortalDevices(args)
+def lmDevices
+// But first determine if the portal size is within a range that allows us to get all devices at once
+def pathFlag, portalInfo, timeLimitSec, timeLimitMs
+if (!skipDeviceDedupe) {
+    portalInfo = lmApi.apiCallInfo("Devices", args)
+    timeLimitSec = props.get("lmapi.timelimit.sec", "60").toInteger()
+    timeLimitMs = (timeLimitSec) ? Math.min(Math.max(timeLimitSec, 30), 120) * 1000 : 60000 // Allow range 30-120 sec if configured; default to 60 sec
+
+    if (portalInfo.timeEstimateMs > timeLimitMs) {
+        lmDebug.LMDebugPrint("Estimate indicates LM API calls would take longer than time limit configured.  Proceeding with individual queries by display name for each device to add.")
+        lmDebug.LMDebugPrint("\t${portalInfo}\n\tNOTE:  Time limit is set to ${timeLimitSec} seconds.  Adjust this limit by setting the property lmapi.timelimit.sec.  Max 120 seconds, min 30 seconds.")
+        pathFlag = "ind"
+    }
+    else {
+        lmDebug.LMDebugPrint("Response time indicates LM API calls will complete in a reasonable time range.  Proceeding to collect info on all devices to cross reference and prevent duplicate device creation.\n\t${portalInfo}")
+        pathFlag = "all"
+        lmDevices = lmApi.getPortalDevices(args)
+    }
+}
 
 if (testSessionId == null) {
     // Since login and logouts can lock a portal we will only do so if we cannot find data for sessionId in cache.
@@ -129,8 +145,18 @@ if (response) {
             String ip = it.'system-ip'.toString()
             String displayName = it.'host-name'.toString()
 
-            // Check for existing device in LM portal with this displayName
-            def deviceMatch = lmApi.checkExistingDevices(displayName, lmDevices)
+            // Check for existing device in LM portal with this displayName; set to false initially and update to true when dupe found
+            def deviceMatch = false
+            // If customer has opted out of device deduplication checks, we skip the lookups where we determine if a match exists and proceed as false
+            if (!skipDeviceDedupe) {
+                if (pathFlag == "ind") {
+                    deviceMatch = lmApi.findPortalDevice(displayName, args)
+                }
+                else if (pathFlag == "all") {
+                    deviceMatch = lmApi.checkExistingDevices(displayName, lmDevices)
+                }
+            }
+
             if (deviceMatch) {
                 // Log duplicates that would cause additional devices to be created; unless these entries are resolved, they will not be added to resources for netscan output
                 if (ip != deviceMatch.name) {
@@ -185,6 +211,9 @@ if (response) {
             if (deviceType.contains("bond")) {
                 setCategory = "CiscoSDWANBond"
             }
+            if (deviceType.contains("manage")) {
+                setCategory = "CiscoSDWANManage"
+            }
 
             Map deviceProps = [
                     "cisco.sdwan.user"               : emit.sanitizePropertyValue(ciscoSDWAN.user),
@@ -195,6 +224,7 @@ if (response) {
                     "cisco.sdwan.device.id"          : emit.sanitizePropertyValue(it.'system-ip'),
                     "cisco.sdwan.site.id"            : emit.sanitizePropertyValue(siteId),
                     "cisco.sdwan.statisticslookback" : emit.sanitizePropertyValue(statisticsLookBack),
+                    "cisco.sdwan.serial.number"      : emit.sanitizePropertyValue(it.'board-serial'),
                     "system.categories"              : setCategory,
             ]
 
@@ -217,26 +247,23 @@ if (response) {
             else {
                 groupName = "Site ID: ${siteId}"
             }
-            if (!(deviceType.contains("manage"))) {
-                Map resource = [
-                        "hostname"   : ip,
-                        "displayname": displayName,
-                        "hostProps"  : deviceProps,
-                        "groupName"  : ["${rootFolder}/${groupName}"],
-                ]
-                // Only add the collectorId field to resource map if we found a collector ID above
-                if (collectorId) {
-                    resource["collectorId"] = collectorId
-                    duplicateResources["resources"][displayName]["Netscan"]["collectorId"] = collectorId
-                }
-                // Only add devices that have not been flagged as a display name device match
-                // Name collisions that have been resolved are updated to remove the device match flag
-                if (!deviceMatch) {
-                    resources.add(resource)
-                }
-                else {
-                    lmDebug.LMDebug("${displayName} skipped due to unresolved name collison.")
-                }
+            Map resource = [
+                    "hostname"   : ip,
+                    "displayname": displayName,
+                    "hostProps"  : deviceProps,
+                    "groupName"  : ["${rootFolder}/${groupName}"],
+            ]
+            // Only add the collectorId field to resource map if we found a collector ID above
+            if (collectorId) {
+                resource["collectorId"] = collectorId
+                duplicateResources["resources"][displayName]["Netscan"]["collectorId"] = collectorId
+            }
+            // Only add devices that have not been flagged as a display name device match
+            // Name collisions that have been resolved are updated to remove the device match flag
+            if (!deviceMatch) {
+                resources.add(resource)
+            } else {
+                lmDebug.LMDebug("${displayName} skipped due to unresolved name collison.")
             }
         }
     }
@@ -244,8 +271,7 @@ if (response) {
     // After building full map of resources, emit complete JSON of discovered devices
     // Enhanced netscan format (requires collector version 32.400+)
     if (resources) {
-        // emit.resource(resources, debug) // when we don't need to limit output this can be used.
-        emitWriteJsonResources(emit, "catalyst_devices", resources, lmDebug) // limit output to 600
+        emit.resource(resources, debug)
     }
 
     // Report devices that already exist in LM via log file named after root folder
@@ -257,13 +283,11 @@ if (response) {
         netscanDupLog.write(json)
         if (hostnameSource) {
             lmDebug.LMDebug("${duplicateResources["resources"].size()} devices found that were resolved with hostname.source=${hostnameSource} in netscan output.  See LogicMonitor/Agent/logs/NetscanDuplicates/${rootFolder.replaceAll(" ", "_")}.json for details.")
-        }
-        else {
+        } else {
             lmDebug.LMDebug("${duplicateResources["resources"].size()} devices found that were not reported in netscan output.  See LogicMonitor/Agent/logs/NetscanDuplicates/${rootFolder.replaceAll(" ", "_")}.json for details.")
         }
     }
-}
-else {
+} else {
     lmDebug.LMDebugLog("NETSCAN: No response from device API call. Credential check likely failed or some other communication error occurred.")
     throw new Exception(" No response data from device. Verify credentials and that we get data back from the device endpoint using them.")
 }
@@ -272,10 +296,10 @@ return 0
 
 
 /**
-* Helper function to process CSV with collector id, site device name, folder, site id and site name info
-* @param String filename Filename of the CSV containing user-defined site info
-* @return Map siteInfo with site ID as the key with a Map containing the rest of the info as key value pairs
-*/
+ * Helper function to process CSV with collector id, site device name, folder, site id and site name info
+ * @param String filename Filename of the CSV containing user-defined site info
+ * @return Map siteInfo with site ID as the key with a Map containing the rest of the info as key value pairs
+ */
 def processCollectorSiteInfoCSV(String filename) {
     // Read file into memory and split into list of lists
     def csv = newFile(filename, "csv")
@@ -286,12 +310,12 @@ def processCollectorSiteInfoCSV(String filename) {
     // Sanitize for casing and extra whitespaces while gathering headers
     def maybeHeaders = rows[0]*.toLowerCase()*.trim()
     if (maybeHeaders.contains("collector id") &&
-        maybeHeaders.contains("region folder") &&
-        maybeHeaders.contains("site id") &&
-        maybeHeaders.contains("site name")) {
+            maybeHeaders.contains("region folder") &&
+            maybeHeaders.contains("site id") &&
+            maybeHeaders.contains("site name")) {
 
         Map headerIndices = [:]
-        maybeHeaders.eachWithIndex{ val, i ->
+        maybeHeaders.eachWithIndex { val, i ->
             headerIndices[val] = i
         }
         // Index values for headers to ensure we key the correct index regardless of order
@@ -304,12 +328,12 @@ def processCollectorSiteInfoCSV(String filename) {
         def data = rows[1..-1]
 
         // Build a map of common site names with site ID as key
-        data.each{ entry ->
+        data.each { entry ->
             siteId = entry[si].trim()
             siteInfo[siteId] = [
-                    "collectorId"      : entry[ci].trim(),
-                    "regionFolder"     : entry[rf].trim(),
-                    "siteName"         : entry[sn].trim(),
+                    "collectorId" : entry[ci].trim(),
+                    "regionFolder": entry[rf].trim(),
+                    "siteName"    : entry[sn].trim(),
             ]
         }
     }
@@ -339,37 +363,4 @@ File newFile(String filename, String fileExtension) {
     }
 
     return new File(filepath)
-}
-
-
-/**
- * Output resources to stdout and cache any remainders to JSON file on collector disk
- * @param emit Snippet object for lm.emit (requires version 1.0)
- * @param filename String
- * @param resources List<Map> resources to be added from netscan
- * @param lmDebug Snippet object class instantiation of lm.debug (requires version 1.0)
- */
-def emitWriteJsonResources(emit, String filename, List<Map> resources, lmDebug) {
-    def chunkSize = 600
-    def chunk = Math.min(resources.size(), chunkSize)
-    lmDebug.LMDebugPrint("Adding ${chunk} devices.")
-    // Output resources in chunk size deemed safe by platform team
-    emit.resource(resources[0..chunk-1], lmDebug.debug)
-
-    File cacheFile = newFile(filename, "json")
-    // If the number of resources is less than or equal to our chunk size, our batching is complete and we can delete the file and exit
-    if (resources.size() <= chunk) {
-        cacheFile.delete()
-        lmDebug.LMDebugPrint("All known devices have been reported.")
-        return
-    }
-    // Remove sensitive properties prior to storing data in cache file; hardcode to true to ensure props are masked regardless of debug mode
-    def remainingResources = emit.sanitizeResourceSensitiveProperties(resources, true)
-    remainingResources = remainingResources[chunk..-1]
-    def jsonRR = JsonOutput.toJson(remainingResources)
-    // println JsonOutput.prettyPrint(jsonRR) // Uncomment for debugging purposes if needed
-
-    lmDebug.LMDebug("Caching ${remainingResources.size()} devices to disk to add to portal in upcoming netscan executions.")
-    cacheFile.write(jsonRR)
-    return
 }

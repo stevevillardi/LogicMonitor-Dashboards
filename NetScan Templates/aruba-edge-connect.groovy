@@ -81,14 +81,14 @@ def pathFlag, portalInfo, timeLimitSec, timeLimitMs
 if (!skipDeviceDedupe) {
     portalInfo = lmApi.apiCallInfo("Devices", args)
     timeLimitSec = props.get("lmapi.timelimit.sec", "60").toInteger()
-    timeLimitMs = (timeLimitSec) ? Math.min(Math.max(timeLimitSec, 30), 120) * 1000 : 60000 // Allow range 30-120 sec if configured; default to 60 sec
+    timeLimitMs = (timeLimitSec) ? Math.min(Math.max(timeLimitSec, 30), 120) * 1000 : 60000
+    // Allow range 30-120 sec if configured; default to 60 sec
 
     if (portalInfo.timeEstimateMs > timeLimitMs) {
         lmDebug.LMDebugPrint("Estimate indicates LM API calls would take longer than time limit configured.  Proceeding with individual queries by display name for each device to add.")
         lmDebug.LMDebugPrint("\t${portalInfo}\n\tNOTE:  Time limit is set to ${timeLimitSec} seconds.  Adjust this limit by setting the property lmapi.timelimit.sec.  Max 120 seconds, min 30 seconds.")
         pathFlag = "ind"
-    }
-    else {
+    } else {
         lmDebug.LMDebugPrint("Response time indicates LM API calls will complete in a reasonable time range.  Proceeding to collect info on all devices to cross reference and prevent duplicate device creation.\n\t${portalInfo}")
         pathFlag = "all"
         lmDevices = lmApi.getPortalDevices(args)
@@ -121,8 +121,7 @@ appliancesData?.each { device ->
     if (!skipDeviceDedupe) {
         if (pathFlag == "ind") {
             deviceMatch = lmApi.findPortalDevice(displayName, args)
-        }
-        else if (pathFlag == "all") {
+        } else if (pathFlag == "all") {
             deviceMatch = lmApi.checkExistingDevices(displayName, lmDevices)
         }
     }
@@ -132,7 +131,7 @@ appliancesData?.each { device ->
             def collisionInfo = [
                     (displayName): [
                             "Netscan" : [
-                                    "hostname": device.ip
+                                    "hostname": ip
                             ],
                             "LM"      : [
                                     "hostname"   : deviceMatch.name,
@@ -146,16 +145,14 @@ appliancesData?.each { device ->
                 collectorId = deviceMatch.currentCollectorId
                 deviceMatch = false
                 collisionInfo[displayName]["Resolved"] = true
-            }
-            else if (hostnameSource == "netscan") {
+            } else if (hostnameSource == "netscan") {
                 collisionInfo[displayName]["Resolved"] = true
                 displayName = "${displayName} - ${ip}"
                 deviceMatch = false
             }
 
             duplicateResources["resources"].add(collisionInfo)
-        }
-        else {
+        } else {
             deviceMatch = false
         }
     }
@@ -174,12 +171,13 @@ appliancesData?.each { device ->
     }
 
     Map resource = [
-            "hostname"   : device.ip,
-            "displayname": device.hostName,
+            "hostname"   : ip,
+            "displayname": displayName,
             "groupName"  : groupName,
             "hostProps"  : [
-                    "aruba.orchestrator.host"            : orchestratorInfo?.host ?: orchestratorInfo.hostName,
-                    "aruba.appliance.nepk"               : device.nePk,
+                    "aruba.appliance.nepk"               : device?.nePk,
+                    "aruba.orchestrator.host"            : host,
+                    "aruba.orchestrator.api.key"         : creds,
                     "aruba.orchestrator.serial.number"   : orchestratorInfo?.serialNumber,
                     "aruba.orchestrator.model"           : orchestratorInfo?.model,
                     "aruba.orchestrator.software.version": orchestratorInfo?.release,
@@ -188,6 +186,21 @@ appliancesData?.each { device ->
                     "aruba.orchestrator.os"              : orchestratorInfo?.osRev ?: orchestratorInfo?.release
             ]
     ]
+
+    def filterProps = [
+            "aruba.appliance.serial.number": device?.serial,
+            "aruba.appliance.site"         : device?.site,
+            "aruba.appliance.device.name"  : device?.hostName,
+            "aruba.appliance.tags"         : device?.tagsList
+    ]
+
+    filterProps.each { k, v ->
+        if (v) {
+            Map hostProps = resource.get("hostProps")
+            hostProps.put(k, v)
+        }
+    }
+
 
     if (collectorId) {
         resource["collectorId"] = collectorId

@@ -67,6 +67,7 @@ String orgDisplayname      = props.get("meraki.api.org.name") ?: "MerakiOrganiza
 String rootFolder          = props.get("meraki.api.org.folder") ? props.get("meraki.api.org.folder") + "/" : ""
 String serviceUrl          = props.get("meraki.service.url")
 def disableSwitches        = props.get("meraki.disableswitches")?.toBoolean() ?: false
+def addDeviceApiKey        = props.get("meraki.api.key.addToAllDevices") == null ? true : props.get("meraki.api.key.addToAllDevices").toBoolean()
 def networksWhitelist      = props.get("meraki.api.org.networks")?.tokenize(",")?.collect{ it.trim() }
 def collectorNetworksCSV   = props.get("meraki.api.org.collector.networks.csv")
 def collectorNetworkInfo
@@ -165,9 +166,15 @@ orgDevicesStatuses.each { orgDevice ->
     // Verify this network should be included based on customer whitelist configuration
     if (networksWhitelist != null && !networksWhitelist.contains(networkId)) return
 
-    def ip = orgDevice.get("lanIp", orgDevice.get("publicIp"))
-    if (ip == null) ip = orgDevice.get("wan1Ip", orgDevice.get("wan2Ip"))
+    def ip = orgDevice.get("lanIp")
+    if (ip == null) ip = orgDevice.get("publicIp")
+    if (ip == null) ip = orgDevice.get("wan1Ip")
+    if (ip == null) ip = orgDevice.get("wan2Ip")
     def name = orgDevice.get("name")
+
+    // Skip devices that do not have an IP and name; we must have at least one to create a device
+    if (!ip && !name) return
+
     def productType = orgDevice.get("productType")
     def serial = orgDevice.get("serial")
     def model = orgDevice.get("model")
@@ -228,12 +235,13 @@ orgDevicesStatuses.each { orgDevice ->
         if (ip == "127.0.0.1") ip = name
         if (!name) name = ip
         def deviceProps = [
-            "meraki.api.key"          : key,
             "meraki.api.org"          : emit.sanitizePropertyValue(org),
             "meraki.api.network"      : emit.sanitizePropertyValue(networkId),
             "meraki.api.network.name" : emit.sanitizePropertyValue(networkName),
             "meraki.serial"           : emit.sanitizePropertyValue(serial)
         ]
+
+        if (addDeviceApiKey) deviceProps.put("meraki.api.key", key)
 
         if (networksWhitelist != null) deviceProps.put("meraki.api.org.networks", emit.sanitizePropertyValue(networksWhitelist))
         if (disableSwitches) deviceProps.put("meraki.disableswitches", "true")
@@ -252,6 +260,9 @@ orgDevicesStatuses.each { orgDevice ->
     
         def firmware = orgDevices.find { it.serial == serial}?.firmware
         if (firmware) deviceProps.put("meraki.firmware", firmware)
+
+        def address = orgDevices.find { it.serial == serial}?.address
+        if (address) deviceProps.put("location", address)
 
         if (productType == "camera") {
             deviceProps.put("system.categories", "CiscoMerakiCamera")
