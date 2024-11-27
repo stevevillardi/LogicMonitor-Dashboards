@@ -1,0 +1,37 @@
+{
+  "videoCategories": [
+    {
+      "category": "Monitoring",
+      "videos": [
+        {
+          "title": "PowerShell Series: Setting up LogicMonitor with multiple SSH/SNMP Credentials",
+          "description": "Learn how to setup LogicMonitor with multiple SSH/SNMP credentials",
+          "videoId": "DR63mbIXeB0",
+          "duration": "12:29"
+        }
+      ]
+    },
+    {
+      "category": "Automation",
+      "videos": [
+        {
+          "title": "PowerShell Series: Filtering and Delta Usage",
+          "description": "Learn how to use PowerShell module for advanced filtering and delta usage",
+          "videoId": "tJqbfAd9sqU",
+          "duration": "18:24"
+        }
+      ]
+    },
+    {
+      "category": "Resource Management",
+      "videos": [
+        {
+          "title": "PowerShell Series: Onboarding and Configuring Devices",
+          "description": "Learn how to use PowerShell module for onboarding and configuring devices",
+          "videoId": "mMGadMsu1Qo",
+          "duration": "12:11"
+        }
+      ]
+    }
+  ]
+}
