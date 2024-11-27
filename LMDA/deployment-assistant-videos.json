@@ -13,6 +13,18 @@
               "description": "Description of another monitoring video",
               "videoId": "another-video-id",
               "duration": "10:00"
+          },
+          {
+              "title": "Another Monitoring Video",
+              "description": "Description of another monitoring video",
+              "videoId": "another-video-id",
+              "duration": "10:00"
+          },
+          {
+              "title": "Another Monitoring Video",
+              "description": "Description of another monitoring video",
+              "videoId": "another-video-id",
+              "duration": "10:00"
           }
       ]
   },
