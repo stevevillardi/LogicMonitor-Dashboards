@@ -9,22 +9,22 @@
               "duration": "12:29"
           },
           {
-              "title": "Another Monitoring Video",
-              "description": "Description of another monitoring video",
-              "videoId": "another-video-id",
-              "duration": "10:00"
+              "title": "SNMP Traps as Logs | LogicMonitor",
+              "description": "Michael Rodrigues, Senior Product Manager, will give you a tour of SNMP Traps as Logs, a new way to monitor SNMP traps with LogicMonitor.",
+              "videoId": "B5E6Sv6dSz0",
+              "duration": "6:48"
           },
           {
-              "title": "Another Monitoring Video",
-              "description": "Description of another monitoring video",
-              "videoId": "another-video-id",
-              "duration": "10:00"
+              "title": "Turning log anomalies into log alerts | LogicMonitor Envision",
+              "description": "Discover how LogicMonitor Envision's anomaly detection helps your IT team stay ahead of issues before they escalate",
+              "videoId": "zYtoE7lumSc",
+              "duration": "2:35"
           },
           {
-              "title": "Another Monitoring Video",
-              "description": "Description of another monitoring video",
-              "videoId": "another-video-id",
-              "duration": "10:00"
+              "title": "Ubiquiti UniFi WiFi Monitoring",
+              "description": "An overview of how to monitor Ubiquiti UniFi WiFi devices with LogicMonitor",
+              "videoId": "tO7VnAy-MNE",
+              "duration": "5:15"
           }
       ]
   },
