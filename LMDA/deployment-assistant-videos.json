@@ -29,6 +29,17 @@
       ]
   },
   {
+    "category": "Cloud Monitoring",
+    "videos": [
+        {
+            "title": "LogicMonitor: Adding Azure to LM Cloud (Walkthrough)",
+            "description": "Learn how to setup Azure monitoring with LM Cloud.",
+            "videoId": "qr_Q_iKA6og",
+            "duration": "13:41"
+        }
+    ]
+  }
+  {
       "category": "Automation",
       "videos": [
           {
