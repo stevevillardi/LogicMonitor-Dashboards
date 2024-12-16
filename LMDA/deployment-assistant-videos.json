@@ -1,75 +1,75 @@
 [
-  {
-      "category": "Monitoring",
-      "videos": [
-          {
-              "title": "PowerShell Series: Setting up LogicMonitor with multiple SSH/SNMP Credentials",
-              "description": "Learn how to setup LogicMonitor with multiple SSH/SNMP credentials",
-              "videoId": "DR63mbIXeB0",
-              "duration": "12:29"
-          },
-          {
-              "title": "SNMP Traps as Logs | LogicMonitor",
-              "description": "Michael Rodrigues, Senior Product Manager, will give you a tour of SNMP Traps as Logs, a new way to monitor SNMP traps with LogicMonitor.",
-              "videoId": "B5E6Sv6dSz0",
-              "duration": "6:48"
-          },
-          {
-              "title": "Turning log anomalies into log alerts | LogicMonitor Envision",
-              "description": "Discover how LogicMonitor Envision's anomaly detection helps your IT team stay ahead of issues before they escalate",
-              "videoId": "zYtoE7lumSc",
-              "duration": "2:35"
-          },
-          {
-              "title": "Ubiquiti UniFi WiFi Monitoring",
-              "description": "An overview of how to monitor Ubiquiti UniFi WiFi devices with LogicMonitor",
-              "videoId": "tO7VnAy-MNE",
-              "duration": "5:15"
-          }
-      ]
-  },
-  {
-    "category": "Cloud Monitoring",
-    "videos": [
-        {
-            "title": "Adding Azure to LM Cloud (Walkthrough)",
-            "description": "Learn how to setup Azure monitoring with LM Cloud.",
-            "videoId": "qr_Q_iKA6og",
-            "duration": "13:41"
-        }
-    ]
-  },
-  {
-      "category": "Automation",
-      "videos": [
-          {
-              "title": "PowerShell Series: Filtering and Delta Usage",
-              "description": "Learn how to use PowerShell module for advanced filtering and delta usage",
-              "videoId": "tJqbfAd9sqU",
-              "duration": "18:24"
-          }
-      ]
-  },
-  {
-      "category": "Portal Setup",
-      "videos": [
-          {
-              "title": "Setting up SSO in LogicMonitor (Walkthrough)",
-              "description": "Learn how to setup and configure your IDP for SAML 2.0 authentication in LM",
-              "videoId": "f9RtaYHk6DE",
-              "duration": "10:38"
-          }
-      ]
-  },
-  {
-      "category": "Resource Management",
-      "videos": [
-          {
-              "title": "PowerShell Series: Onboarding and Configuring Devices",
-              "description": "Learn how to use PowerShell module for onboarding and configuring devices",
-              "videoId": "mMGadMsu1Qo",
-              "duration": "12:11"
-          }
-      ]
-  }
+    {
+        "category": "Cloud Monitoring",
+        "videos": [
+            {
+                "title": "Adding Azure to LM Cloud (Walkthrough)",
+                "description": "Learn how to setup Azure monitoring with LM Cloud.",
+                "videoId": "qr_Q_iKA6og",
+                "duration": "13:41"
+            }
+        ]
+    },
+    {
+        "category": "Automation",
+        "videos": [
+            {
+                "title": "PowerShell Series: Filtering and Delta Usage",
+                "description": "Learn how to use PowerShell module for advanced filtering and delta usage",
+                "videoId": "tJqbfAd9sqU",
+                "duration": "18:24"
+            }
+        ]
+    },
+    {
+        "category": "Portal Setup",
+        "videos": [
+            {
+                "title": "Setting up SSO in LogicMonitor (Walkthrough)",
+                "description": "Learn how to setup and configure your IDP for SAML 2.0 authentication in LM",
+                "videoId": "f9RtaYHk6DE",
+                "duration": "10:38"
+            }
+        ]
+    },
+    {
+        "category": "Resource Management",
+        "videos": [
+            {
+                "title": "PowerShell Series: Onboarding and Configuring Devices",
+                "description": "Learn how to use PowerShell module for onboarding and configuring devices",
+                "videoId": "mMGadMsu1Qo",
+                "duration": "12:11"
+            }
+        ]
+    },
+    {
+        "category": "Monitoring",
+        "videos": [
+            {
+                "title": "PowerShell Series: Setting up LogicMonitor with multiple SSH/SNMP Credentials",
+                "description": "Learn how to setup LogicMonitor with multiple SSH/SNMP credentials",
+                "videoId": "DR63mbIXeB0",
+                "duration": "12:29"
+            },
+            {
+                "title": "SNMP Traps as Logs | LogicMonitor",
+                "description": "Michael Rodrigues, Senior Product Manager, will give you a tour of SNMP Traps as Logs, a new way to monitor SNMP traps with LogicMonitor.",
+                "videoId": "B5E6Sv6dSz0",
+                "duration": "6:48"
+            },
+            {
+                "title": "Turning log anomalies into log alerts | LogicMonitor Envision",
+                "description": "Discover how LogicMonitor Envision's anomaly detection helps your IT team stay ahead of issues before they escalate",
+                "videoId": "zYtoE7lumSc",
+                "duration": "2:35"
+            },
+            {
+                "title": "Ubiquiti UniFi WiFi Monitoring",
+                "description": "An overview of how to monitor Ubiquiti UniFi WiFi devices with LogicMonitor",
+                "videoId": "tO7VnAy-MNE",
+                "duration": "5:15"
+            }
+        ]
+    }
 ]
