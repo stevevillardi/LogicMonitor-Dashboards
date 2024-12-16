@@ -54,7 +54,7 @@
       "category": "Portal Setup",
       "videos": [
           {
-              "title": "Setting up SSO in LogicMonitor",
+              "title": "Setting up SSO in LogicMonitor (Walkthrough)",
               "description": "Learn how to setup and configure your IDP for SAML 2.0 authentication in LM",
               "videoId": "f9RtaYHk6DE",
               "duration": "10:38"
