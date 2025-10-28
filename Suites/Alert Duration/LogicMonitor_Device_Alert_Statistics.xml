@@ -97,15 +97,41 @@ return 0</wildcardgroovyscript>
         <attribute>
             <name>scriptgroovy</name>
             <value>/*******************************************************************************
- * © 2007-2023 - LogicMonitor, Inc. All rights reserved.
+ * © 2007-2025 - LogicMonitor, Inc. All rights reserved.
  ******************************************************************************/
 import groovy.json.*
+import java.util.Arrays
 
-def durationPeriod = hostProps.get(&#34;alert.analysis.period&#34;) ?: hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;7&#34; //Default to 7 day(s)
+def durationPeriod = hostProps.get(&#34;alert.analysis.period&#34;) ?: hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;30&#34; //Default to 30 day(s)
 def durationMinimum = hostProps.get(&#34;alert.analysis.minimumTimeInSeconds&#34;) ?: hostProps.get(&#34;alert.duration.minimumTimeInSeconds&#34;) ?: &#34;0&#34; //Default to include alerts of any duration)
 def deviceId = hostProps.get(&#34;system.deviceId&#34;)
 def scriptCache
-def maxAlertCacheSize = 10 //Number of scriptCache keys to utilize since max cache size is limited to around 20,000 alerts
+def maxAlertCacheSize = = hostProps.get(&quot;alert.analysis.maxAlertCachePartitions&quot;)?.toInteger() ?: 10 //Number of scriptCache keys to utilize since max cache size is limited to around 20,000 alerts
+
+// Performance and timeout management
+def SCRIPT_START_TIME = System.currentTimeMillis()
+def MAX_EXECUTION_TIME = 110000 // 110 seconds (10s buffer)
+def executionMetrics = [:]
+
+// Utility functions for performance and timeout management
+def trackPerformance = { String operation, Closure code -&#62;
+    def startTime = System.currentTimeMillis()
+    try {
+        def result = code()
+        def duration = System.currentTimeMillis() - startTime
+        executionMetrics[operation] = duration
+        return result
+    } catch (Exception e) {
+        println &#34;${operation}Error=1&#34;
+        throw e
+    }
+}
+
+def checkTimeout = { String operation -&#62;
+    if ((System.currentTimeMillis() - SCRIPT_START_TIME) &#62;= MAX_EXECUTION_TIME) {
+        throw new Exception(&#34;Script timeout during: ${operation}&#34;)
+    }
+}
 
 /*Calculate start and end date for alert query*/
 int timePeriod = 24 * durationPeriod.toInteger() //hours for rolling average
@@ -117,83 +143,100 @@ def alerts
 def devices
 
 try {
+    checkTimeout(&#34;Initial cache setup&#34;)
+
     scriptCache = this.class.classLoader.loadClass(&#34;com.santaba.agent.util.script.ScriptCache&#34;).getCache();
-    //String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
-    String alertsCache = getAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache)
+
+    // Load alerts from cache with performance tracking
+    String alertsCache = trackPerformance(&#34;alertCacheRetrieval&#34;) {
+        getAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache)
+    }
     if(alertsCache){
-        /*Grab resources*/
-        alerts = new JsonSlurper().parseText(alertsCache)
+        alerts = trackPerformance(&#34;alertsParsing&#34;) {
+            new JsonSlurper().parseText(alertsCache)
+        }
     }
 
-    String resourceCache = scriptCache.get(&#34;DeviceAlertStats-ResourceCache&#34;);
-    if(resourceCache){
-        /*Grab resources*/
-        devices = new JsonSlurper().parseText(resourceCache)
+    // Load devices from cache with performance tracking
+    String resourceCache = trackPerformance(&#34;resourceCacheRetrieval&#34;) {
+        scriptCache.get(&#34;DeviceAlertStats-ResourceCache&#34;)
     }
-}	
+    if(resourceCache){
+        devices = trackPerformance(&#34;devicesParsing&#34;) {
+            new JsonSlurper().parseText(resourceCache)
+        }
+    }
+}
 catch (Exception ex) {
-	println ex
+    def executionTime = System.currentTimeMillis() - SCRIPT_START_TIME
+    println &#34;ScriptError=1&#34;
+    println &#34;ErrorMessage=${ex.getMessage()}&#34;
+    println &#34;ExecutionTimeAtError=${executionTime}&#34;
+    println &#34;TimeoutExceeded=${executionTime &#62;= MAX_EXECUTION_TIME ? 1 : 0}&#34;
+
+    // Output any performance metrics we collected before the error
+    executionMetrics.each { operation, duration -&#62;
+        println &#34;${operation}=${duration}&#34;
+    }
+
+    println ex
     return -1
 }
 
 if(alerts &#38;&#38; devices){
-    def devicesWithAlerts = alerts.monitorObjectId.unique(false)
-    devices.each { device -&#62; 
-        if(devicesWithAlerts.contains(device.id)){
-            def matching_alerts = alerts.findAll { it.monitorObjectId.toString() == device.id.toString()}
+    checkTimeout(&#34;Alert processing&#34;)
 
-            matching_alerts.each { alert -&#62;
-                double duration = alert.endEpoch - alert.startEpoch
-                alert.put(&#34;Duration&#34;,duration)
+    // Pre-index alerts by device ID for O(1) lookup instead of O(n) findAll
+    def alertsByDevice = trackPerformance(&#34;alertIndexing&#34;) {
+        alerts.groupBy { it.monitorObjectId.toString() }
+    }
 
-                switch(alert.severity.toInteger()){
-                    case 2:
-                        //warning
-                        alert.put(&#34;warnDuration&#34;,duration)
-                        break;
-                    case 3:
-                        //error
-                        alert.put(&#34;errorDuration&#34;,duration)
-                        break;
-                    case 4:
-                        //critical
-                        alert.put(&#34;criticalDuration&#34;,duration)
-                        break;
-                }
+    def processedDevices = 0
+    devices.each { device -&#62;
+        checkTimeout(&#34;Processing device ${device.id}&#34;)
+
+        def deviceAlerts = alertsByDevice[device.id.toString()]
+        if(deviceAlerts){
+            // Process alerts for this device with single-pass optimization
+            def processedAlerts = trackPerformance(&#34;deviceAlertProcessing&#34;) {
+                processDeviceAlertsOptimized(deviceAlerts, durationMinimum.toInteger())
             }
 
-            //Remove alerts not meeting minimum duration
-            matching_alerts.removeAll { it.Duration &#60;= durationMinimum.toInteger()}
-
-            def warnAlerts = matching_alerts.findAll { it.severity.toInteger() == 2}
-            def errorAlerts = matching_alerts.findAll { it.severity.toInteger() == 3}
-            def criticalAlerts = matching_alerts.findAll { it.severity.toInteger() == 4}
-
-            calcDuration(matching_alerts,&#34;&#34;, device.id)
-            calcDuration(warnAlerts,&#34;warn&#34;, device.id)
-            calcDuration(errorAlerts,&#34;error&#34;, device.id)
-            calcDuration(criticalAlerts,&#34;critical&#34;, device.id)
+            calcDurationOptimized(processedAlerts.total,&#34;&#34;, device.id)
+            calcDurationOptimized(processedAlerts.warn,&#34;warn&#34;, device.id)
+            calcDurationOptimized(processedAlerts.error,&#34;error&#34;, device.id)
+            calcDurationOptimized(processedAlerts.critical,&#34;critical&#34;, device.id)
         }
         else{
-            println &#34;${device.id}.longestAlertDuration=0&#34;
-			println &#34;${device.id}.warnLongestAlertDuration=0&#34;
-			println &#34;${device.id}.errorLongestAlertDuration=0&#34;
-			println &#34;${device.id}.criticalLongestAlertDuration=0&#34;
-            println &#34;${device.id}.alertSize=0&#34;
-            println &#34;${device.id}.averageDuration=0&#34;
-            println &#34;${device.id}.warnAverageDuration=0&#34;
-            println &#34;${device.id}.errorAverageDuration=0&#34;
-            println &#34;${device.id}.criticalAverageDuration=0&#34;
-            println &#34;${device.id}.warnAlertSize=0&#34;
-            println &#34;${device.id}.errorAlertSize=0&#34;
-            println &#34;${device.id}.criticalAlertSize=0&#34;
-            println &#34;${device.id}.averageDuration95th=0&#34;
-            println &#34;${device.id}.warnAverageDuration95th=0&#34;
-            println &#34;${device.id}.errorAverageDuration95th=0&#34;
-            println &#34;${device.id}.criticalAverageDuration95th=0&#34;
+            // Output zero values for devices with no alerts
+            outputZeroMetrics(device.id)
         }
         println &#34;${device.id}.durationPeriod=${durationPeriod}&#34;
+
+        processedDevices++
+
+        // Periodic timeout check for large device lists
+        if(processedDevices % 100 == 0) {
+            checkTimeout(&#34;Processed ${processedDevices} devices&#34;)
+        }
     }
+
+    // Performance and execution metrics
+    def totalExecutionTime = System.currentTimeMillis() - SCRIPT_START_TIME
+    println &#34;totalExecutionTime=${totalExecutionTime}&#34;
+    println &#34;processedDevices=${processedDevices}&#34;
+    println &#34;alertsProcessed=${alerts.size()}&#34;
+
+    // Output individual operation timings
+    executionMetrics.each { operation, duration -&#62;
+        println &#34;${operation}=${duration}&#34;
+    }
+
+    // Memory cleanup
+    alerts?.clear()
+    devices?.clear()
+    alertsByDevice?.clear()
+    executionMetrics?.clear()
 }
 
 return 0
@@ -215,11 +258,110 @@ def getAlertCache(cacheLimit,cacheName,cacheObject){
     }
     // println &#34;Total cache size accross ${i} index(es), alert size ${alerts.size()}&#34;
     if(alerts){
-        return new JsonBuilder( alerts ).toPrettyString()
+        return new JsonBuilder( alerts ).toString() // Use toString() for better performance
     }
     else{
         // println &#34;No cache found&#34;
         return null
+    }
+}
+
+// Optimized single-pass alert processing function
+def processDeviceAlertsOptimized(deviceAlerts, durationMinimum) {
+    def stats = [
+        total: [count: 0, durations: []],
+        warn: [count: 0, durations: []],
+        error: [count: 0, durations: []],
+        critical: [count: 0, durations: []]
+    ]
+
+    deviceAlerts.each { alert -&#62;
+        double duration = alert.endEpoch - alert.startEpoch
+
+        // Early termination for short alerts
+        if (duration &#60;= durationMinimum) return
+
+        // Single calculation, multiple uses
+        def severityKey = getSeverityKey(alert.severity.toInteger())
+
+        stats.total.count++
+        stats.total.durations &#60;&#60; duration
+
+        if (severityKey) {
+            stats[severityKey].count++
+            stats[severityKey].durations &#60;&#60; duration
+        }
+    }
+
+    return stats
+}
+
+// Helper function for severity mapping
+private getSeverityKey(severity) {
+    switch(severity) {
+        case 2: return &#39;warn&#39;
+        case 3: return &#39;error&#39;
+        case 4: return &#39;critical&#39;
+        default: return null
+    }
+}
+
+// Optimized percentile calculation using Arrays.sort for better performance
+def getPercentileOptimized(collection, percentile) {
+    if (!collection || collection.empty) return [percentileValue: 0.0, longestDuration: 0.0]
+
+    // Use Arrays.sort for better performance
+    def values = collection as double[]
+    Arrays.sort(values)
+
+    int index = Math.min((int)(values.length * percentile), values.length - 1)
+    double longestDuration = (values[values.length - 1] / 60).round(2)
+
+    // Calculate percentile value without modifying array
+    double percentileValue = 0.0
+    if (index &#62; 0) {
+        def sum = 0.0
+        for (int i = 0; i &#60;= index; i++) {
+            sum += values[i]
+        }
+        percentileValue = ((sum / (index + 1)) / 60).round(2)
+    }
+
+    return [percentileValue: percentileValue, longestDuration: longestDuration]
+}
+
+// Optimized calculation function with better performance
+def calcDurationOptimized(alertStats, dpPrefix, deviceId) {
+    if(alertStats.durations &#38;&#38; !alertStats.durations.empty){
+        println &#34;${deviceId}.${dpPrefix}AlertSize=${alertStats.count}&#34;
+
+        double duration = ((alertStats.durations.sum() / alertStats.durations.size()) / 60).round(2)
+        println &#34;${deviceId}.${dpPrefix}AverageDuration=${duration}&#34;
+
+        def percentileResult = getPercentileOptimized(alertStats.durations, 0.95)
+        println &#34;${deviceId}.${dpPrefix}AverageDuration95th=${percentileResult.percentileValue}&#34;
+        println &#34;${deviceId}.${dpPrefix}longestAlertDuration=${percentileResult.longestDuration}&#34;
+    }
+    else{
+        outputZeroMetricsForPrefix(deviceId, dpPrefix)
+    }
+}
+
+// Output zero metrics for a specific prefix
+def outputZeroMetricsForPrefix(deviceId, dpPrefix) {
+    println &#34;${deviceId}.${dpPrefix}longestAlertDuration=0&#34;
+    println &#34;${deviceId}.${dpPrefix}AlertSize=0&#34;
+    println &#34;${deviceId}.${dpPrefix}AverageDuration=0&#34;
+    println &#34;${deviceId}.${dpPrefix}AverageDuration95th=0&#34;
+}
+
+// Consolidated zero metrics output function for all prefixes
+def outputZeroMetrics(deviceId) {
+    [&#34;&#34;, &#34;warn&#34;, &#34;error&#34;, &#34;critical&#34;].each { prefix -&#62;
+        println &#34;${deviceId}.${prefix}longestAlertDuration=0&#34;
+        println &#34;${deviceId}.${prefix}AlertSize=0&#34;
+        println &#34;${deviceId}.${prefix}AverageDuration=0&#34;
+        println &#34;${deviceId}.${prefix}AverageDuration95th=0&#34;
     }
 }
 
@@ -242,18 +384,11 @@ def calcDuration(collection, dpPrefix, deviceId) {
     }
 }
 
+// Legacy function kept for compatibility (now optimized)
 Double getPercentile(collection, percentile, dpPrefix, deviceId) {
-    def sortedCollection = collection.sort()
-
-    double longestAlertDuration = (sortedCollection[-1] / 60).round(2)
-    println &#34;${deviceId}.${dpPrefix}longestAlertDuration=${longestAlertDuration}&#34;
-
-    int percentileIndex = Math.round(sortedCollection.size() * percentile)
-    sortedCollection.subList(percentileIndex,sortedCollection.size()).clear()
-
-    double result =  ((sortedCollection.sum() / Math.ceil(sortedCollection.size())) / 60).round(2)
-
-    return result
+    def result = getPercentileOptimized(collection, percentile)
+    println &#34;${deviceId}.${dpPrefix}longestAlertDuration=${result.longestDuration}&#34;
+    return result.percentileValue
 }</value>
             <comment></comment>
         </attribute>

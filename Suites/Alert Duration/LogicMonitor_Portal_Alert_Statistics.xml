@@ -10,7 +10,7 @@
         <version>1702007005</version>
         <name>LogicMonitor_Portal_Alert_Statistics</name>
         <displayedas>LogicMonitor Portal Alert Statistics</displayedas>
-        <description>Tracks alert duration averages over a rolling period, defaults to 7 day(s).</description>
+        <description>Tracks alert duration averages over a rolling period, defaults to 30 day(s).</description>
         <collector>script</collector>
         <hasMultiInstances>false</hasMultiInstances>
         <useWildValueAsUniqueIdentifier>false</useWildValueAsUniqueIdentifier>
@@ -56,14 +56,40 @@
         <attribute>
             <name>scriptgroovy</name>
             <value>/*******************************************************************************
- * © 2007-2023 - LogicMonitor, Inc. All rights reserved.
+ * © 2007-2025 - LogicMonitor, Inc. All rights reserved.
  ******************************************************************************/
 import groovy.json.*
+import java.util.Arrays
 
-def durationPeriod = hostProps.get(&#34;alert.analysis.period&#34;) ?: hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;7&#34; //Default to 7 day(s)
-def durationMinimum = hostProps.get(&#34;alert.analysis.minimumTimeInSeconds&#34;) ?: hostProps.get(&#34;alert.duration.minimumTimeInSeconds&#34;) ?: &#34;0&#34; //Default to include alerts of any duration)
+def durationPeriod = hostProps.get(&quot;alert.analysis.period&quot;) ?: hostProps.get(&quot;alert.duration.period&quot;) ?: &quot;30&quot; //Default to 30 day(s)
+def durationMinimum = hostProps.get(&quot;alert.analysis.minimumTimeInSeconds&quot;) ?: hostProps.get(&quot;alert.duration.minimumTimeInSeconds&quot;) ?: &quot;0&quot; //Default to include alerts of any duration)
 
-def maxAlertCacheSize = 10 //Number of scriptCache keys to utilize since max cache size is limited to around 20,000 alerts
+def maxAlertCacheSize = = hostProps.get(&quot;alert.analysis.maxAlertCachePartitions&quot;)?.toInteger() ?: 10 //Number of scriptCache keys to utilize since max cache size is limited to around 20,000 alerts
+
+// Performance and timeout management
+def SCRIPT_START_TIME = System.currentTimeMillis()
+def MAX_EXECUTION_TIME = 110000 // 110 seconds (10s buffer)
+def executionMetrics = [:]
+
+// Utility functions for performance and timeout management
+def trackPerformance = { String operation, Closure code -&gt;
+    def startTime = System.currentTimeMillis()
+    try {
+        def result = code()
+        def duration = System.currentTimeMillis() - startTime
+        executionMetrics[operation] = duration
+        return result
+    } catch (Exception e) {
+        println &quot;${operation}Error=1&quot;
+        throw e
+    }
+}
+
+def checkTimeout = { String operation -&gt;
+    if ((System.currentTimeMillis() - SCRIPT_START_TIME) &gt;= MAX_EXECUTION_TIME) {
+        throw new Exception(&quot;Script timeout during: ${operation}&quot;)
+    }
+}
 
 /*Calculate start and end date for alert query*/
 int timePeriod = 24 * durationPeriod.toInteger() //hours for rolling average
@@ -74,80 +100,77 @@ long startEpoch = endEpoch - (timePeriod*3600)
 def alerts
 def scriptCache
 
-try{
+try {
+    checkTimeout(&quot;Initial cache setup&quot;)
 
-    scriptCache = this.class.classLoader.loadClass(&#34;com.santaba.agent.util.script.ScriptCache&#34;).getCache();
-    //scriptCache.remove(&#34;DeviceAlertStats-AlertsCache&#34;)
-    //String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
-    String alertsCache = getAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache)
+    scriptCache = this.class.classLoader.loadClass(&quot;com.santaba.agent.util.script.ScriptCache&quot;).getCache();
+
+    // Load alerts from cache with performance tracking
+    String alertsCache = trackPerformance(&quot;alertCacheRetrieval&quot;) {
+        getAlertCache(maxAlertCacheSize,&quot;DeviceAlertStats-AlertsCache&quot;,scriptCache)
+    }
     if(alertsCache){
-        alerts = new JsonSlurper().parseText(alertsCache)
+        alerts = trackPerformance(&quot;alertsParsing&quot;) {
+            new JsonSlurper().parseText(alertsCache)
+        }
     }
 }
 catch (Exception ex) {
+    def executionTime = System.currentTimeMillis() - SCRIPT_START_TIME
+    println &quot;ScriptError=1&quot;
+    println &quot;ErrorMessage=${ex.getMessage()}&quot;
+    println &quot;ExecutionTimeAtError=${executionTime}&quot;
+    println &quot;TimeoutExceeded=${executionTime &gt;= MAX_EXECUTION_TIME ? 1 : 0}&quot;
+
+    // Output any performance metrics we collected before the error
+    executionMetrics.each { operation, duration -&gt;
+        println &quot;${operation}=${duration}&quot;
+    }
+
     println ex
     return -1
 }
 
 if(alerts){
-	//alerts.removeAll { it.endEpoch &#60;= startEpoch}
-	alerts.each { alert -&#62;
-		double duration = alert.endEpoch - alert.startEpoch
-        alert.put(&#34;Duration&#34;,duration)
+    checkTimeout(&quot;Alert processing&quot;)
 
-        switch(alert.severity.toInteger()){
-            case 2:
-                //warning
-                alert.put(&#34;warnDuration&#34;,duration)
-                break;
-            case 3:
-                //error
-                alert.put(&#34;errorDuration&#34;,duration)
-                break;
-            case 4:
-                //critical
-                alert.put(&#34;criticalDuration&#34;,duration)
-                break;
-        }
-	}
-	
-    //Remove alerts not meeting minimum duration
-    alerts.removeAll { it.Duration &#60;= durationMinimum.toInteger()}
+    // Process alerts with single-pass optimization
+    def processedAlerts = trackPerformance(&quot;alertProcessing&quot;) {
+        processAlertsOptimized(alerts, durationMinimum.toInteger())
+    }
 
-    def warnAlerts = alerts.findAll { it.severity.toInteger() == 2}
-    def errorAlerts = alerts.findAll { it.severity.toInteger() == 3}
-    def criticalAlerts = alerts.findAll { it.severity.toInteger() == 4}
+    calcDurationOptimized(processedAlerts.total,&quot;&quot;)
+    calcDurationOptimized(processedAlerts.warn,&quot;warn&quot;)
+    calcDurationOptimized(processedAlerts.error,&quot;error&quot;)
+    calcDurationOptimized(processedAlerts.critical,&quot;critical&quot;)
 
-    calcDuration(alerts,&#34;&#34;)
-    calcDuration(warnAlerts,&#34;warn&#34;)
-    calcDuration(errorAlerts,&#34;error&#34;)
-    calcDuration(criticalAlerts,&#34;critical&#34;)
+    // Performance and execution metrics
+    def totalExecutionTime = System.currentTimeMillis() - SCRIPT_START_TIME
+    println &quot;totalExecutionTime=${totalExecutionTime}&quot;
+    println &quot;alertsProcessed=${alerts.size()}&quot;
 
+    // Output individual operation timings
+    executionMetrics.each { operation, duration -&gt;
+        println &quot;${operation}=${duration}&quot;
+    }
+
+    // Memory cleanup
+    alerts?.clear()
+    executionMetrics?.clear()
 }
 else{
-    println &#34;alertSize=0&#34;
-    println &#34;averageDuration=0&#34;
-    println &#34;warnAverageDuration=0&#34;
-    println &#34;errorAverageDuration=0&#34;
-    println &#34;criticalAverageDuration=0&#34;
-    println &#34;warnAlertSize=0&#34;
-    println &#34;errorAlertSize=0&#34;
-    println &#34;criticalAlertSize=0&#34;
-    println &#34;averageDuration95th=0&#34;
-    println &#34;warnAverageDuration95th=0&#34;
-    println &#34;errorAverageDuration95th=0&#34;
-    println &#34;criticalAverageDuration95th=0&#34;
+    outputZeroMetrics()
 }
-println &#34;durationPeriod=${durationPeriod}&#34;
+println &quot;durationPeriod=${durationPeriod}&quot;
 
 return 0
 
 def getAlertCache(cacheLimit,cacheName,cacheObject){
     def alerts = []
     def i = 0
-    while(i &#60; cacheLimit){
-        String alertsCache = cacheObject.get(&#34;${cacheName}-${i}&#34;);
-        // println &#34;Getting cache index: ${i}&#34;
+    while(i &lt; cacheLimit){
+        String alertsCache = cacheObject.get(&quot;${cacheName}-${i}&quot;);
+        // println &quot;Getting cache index: ${i}&quot;
         if(alertsCache == null){
             break
         }
@@ -157,41 +180,136 @@ def getAlertCache(cacheLimit,cacheName,cacheObject){
             i++
         }
     }
-    // println &#34;Total cache size accross ${i} index(es), alert size ${alerts.size()}&#34;
+    // println &quot;Total cache size accross ${i} index(es), alert size ${alerts.size()}&quot;
     if(alerts){
-        return new JsonBuilder( alerts ).toPrettyString()
+        return new JsonBuilder( alerts ).toString() // Use toString() for better performance
     }
     else{
-        // println &#34;No cache found&#34;
+        // println &quot;No cache found&quot;
         return null
     }
 }
 
-def calcDuration(collection, dpPrefix) {
-    if(collection){
-        println &#34;${dpPrefix}AlertSize=${collection.size()}&#34;
+// Optimized single-pass alert processing function
+def processAlertsOptimized(alerts, durationMinimum) {
+    def stats = [
+        total: [count: 0, durations: []],
+        warn: [count: 0, durations: []],
+        error: [count: 0, durations: []],
+        critical: [count: 0, durations: []]
+    ]
 
-        double duration = ((collection.&#34;${dpPrefix}Duration&#34;.sum() / collection.size()) / 60).round(2)
-        println &#34;${dpPrefix}AverageDuration=${duration}&#34;
+    alerts.each { alert -&gt;
+        double duration = alert.endEpoch - alert.startEpoch
 
-        double duration95th =  getPercentile(collection.&#34;${dpPrefix}Duration&#34;, 0.95)
-        println &#34;${dpPrefix}AverageDuration95th=${duration95th}&#34;
+        // Early termination for short alerts
+        if (duration &lt;= durationMinimum) return
+
+        // Single calculation, multiple uses
+        def severityKey = getSeverityKey(alert.severity.toInteger())
+
+        stats.total.count++
+        stats.total.durations &lt;&lt; duration
+
+        if (severityKey) {
+            stats[severityKey].count++
+            stats[severityKey].durations &lt;&lt; duration
+        }
+    }
+
+    return stats
+}
+
+// Helper function for severity mapping
+private getSeverityKey(severity) {
+    switch(severity) {
+        case 2: return &#x27;warn&#x27;
+        case 3: return &#x27;error&#x27;
+        case 4: return &#x27;critical&#x27;
+        default: return null
+    }
+}
+
+// Optimized percentile calculation using Arrays.sort for better performance
+def getPercentileOptimized(collection, percentile) {
+    if (!collection || collection.empty) return [percentileValue: 0.0, longestDuration: 0.0]
+
+    // Use Arrays.sort for better performance
+    def values = collection as double[]
+    Arrays.sort(values)
+
+    int index = Math.min((int)(values.length * percentile), values.length - 1)
+    double longestDuration = (values[values.length - 1] / 60).round(2)
+
+    // Calculate percentile value without modifying array
+    double percentileValue = 0.0
+    if (index &gt; 0) {
+        def sum = 0.0
+        for (int i = 0; i &lt;= index; i++) {
+            sum += values[i]
+        }
+        percentileValue = ((sum / (index + 1)) / 60).round(2)
+    }
+
+    return [percentileValue: percentileValue, longestDuration: longestDuration]
+}
+
+// Optimized calculation function with better performance
+def calcDurationOptimized(alertStats, dpPrefix) {
+    if(alertStats.durations &amp;&amp; !alertStats.durations.empty){
+        println &quot;${dpPrefix}alertSize=${alertStats.count}&quot;
+
+        double duration = ((alertStats.durations.sum() / alertStats.durations.size()) / 60).round(2)
+        println &quot;${dpPrefix}averageDuration=${duration}&quot;
+
+        def percentileResult = getPercentileOptimized(alertStats.durations, 0.95)
+        println &quot;${dpPrefix}averageDuration95th=${percentileResult.percentileValue}&quot;
+        println &quot;${dpPrefix}longestAlertDuration=${percentileResult.longestDuration}&quot;
     }
     else{
-        println &#34;${dpPrefix}AlertSize=0&#34;
-        println &#34;${dpPrefix}AverageDuration=0&#34;
-        println &#34;${dpPrefix}AverageDuration95th=0&#34;
+        outputZeroMetricsForPrefix(dpPrefix)
+    }
+}
+
+// Output zero metrics for a specific prefix
+def outputZeroMetricsForPrefix(dpPrefix) {
+    println &quot;${dpPrefix}longestAlertDuration=0&quot;
+    println &quot;${dpPrefix}alertSize=0&quot;
+    println &quot;${dpPrefix}averageDuration=0&quot;
+    println &quot;${dpPrefix}averageDuration95th=0&quot;
+}
+
+// Consolidated zero metrics output function for all prefixes
+def outputZeroMetrics() {
+    [&quot;&quot;, &quot;warn&quot;, &quot;error&quot;, &quot;critical&quot;].each { prefix -&gt;
+        println &quot;${prefix}longestAlertDuration=0&quot;
+        println &quot;${prefix}alertSize=0&quot;
+        println &quot;${prefix}averageDuration=0&quot;
+        println &quot;${prefix}averageDuration95th=0&quot;
+    }
+}
+
+// Legacy function kept for compatibility (now optimized)
+def calcDuration(collection, dpPrefix) {
+    if(collection){
+        println &quot;${dpPrefix}AlertSize=${collection.size()}&quot;
+
+        double duration = ((collection.&quot;${dpPrefix}Duration&quot;.sum() / collection.size()) / 60).round(2)
+        println &quot;${dpPrefix}AverageDuration=${duration}&quot;
+
+        double duration95th =  getPercentile(collection.&quot;${dpPrefix}Duration&quot;, 0.95)
+        println &quot;${dpPrefix}AverageDuration95th=${duration95th}&quot;
+    }
+    else{
+        println &quot;${dpPrefix}AlertSize=0&quot;
+        println &quot;${dpPrefix}AverageDuration=0&quot;
+        println &quot;${dpPrefix}AverageDuration95th=0&quot;
     }
 }
 
 Double getPercentile(collection, percentile) {
-    def sortedCollection = collection.sort()
-    int percentileIndex = Math.round(sortedCollection.size() * percentile)
-    sortedCollection.subList(percentileIndex,sortedCollection.size()).clear()
-
-    double result =  ((sortedCollection.sum() / Math.ceil(sortedCollection.size())) / 60).round(2)
-
-    return result
+    def result = getPercentileOptimized(collection, percentile)
+    return result.percentileValue
 }</value>
             <comment></comment>
         </attribute>
@@ -622,6 +740,267 @@ Double getPercentile(collection, percentile) {
             <erroradadvsetting></erroradadvsetting>
             <criticaladadvsetting></criticaladadvsetting>
             <description></description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>longestAlertDuration</name>
+            <originId></originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>longestAlertDuration</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Longest alert duration in minutes</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>warnLongestAlertDuration</name>
+            <originId></originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>warnLongestAlertDuration</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Longest warning alert duration in minutes</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>errorLongestAlertDuration</name>
+            <originId></originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>errorLongestAlertDuration</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Longest error alert duration in minutes</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>criticalLongestAlertDuration</name>
+            <originId></originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>criticalLongestAlertDuration</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Longest critical alert duration in minutes</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>totalExecutionTime</name>
+            <originId></originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>totalExecutionTime</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Total script execution time in milliseconds</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>alertsProcessed</name>
+            <originId></originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>alertsProcessed</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Number of alerts processed by script</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>alertCacheRetrieval</name>
+            <originId></originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>alertCacheRetrieval</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Time spent retrieving alerts from cache in milliseconds</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>alertsParsing</name>
+            <originId></originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>alertsParsing</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Time spent parsing alerts JSON in milliseconds</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>alertProcessing</name>
+            <originId></originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>alertProcessing</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Time spent processing alerts in milliseconds</description>
             <maxvalue></maxvalue>
             <minvalue></minvalue>
             <maxdigits>4</maxdigits>

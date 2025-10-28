@@ -56,265 +56,715 @@
         <attribute>
             <name>scriptgroovy</name>
             <value>/*******************************************************************************
- * © 2007-2023 - LogicMonitor, Inc. All rights reserved.
+ * © 2007-2025 - LogicMonitor, Inc. All rights reserved.
+ * V4: OPTIMIZED with proper API sorting and startEpoch-based filtering
  ******************************************************************************/
 
- import groovy.json.JsonSlurper
- import com.santaba.agent.util.Settings
- import com.santaba.agent.live.LiveHostSet
- import org.apache.commons.codec.binary.Hex
- import javax.crypto.Mac
- import javax.crypto.spec.SecretKeySpec
- import java.security.MessageDigest
- import groovy.json.*
- 
- String apiId   = hostProps.get(&#34;lmaccess.id&#34;)  ?: hostProps.get(&#34;logicmonitor.access.id&#34;)
- String apiKey  = hostProps.get(&#34;lmaccess.key&#34;) ?: hostProps.get(&#34;logicmonitor.access.key&#34;)
- def lookbackPeriod = hostProps.get(&#34;alert.analysis.period&#34;) ?: hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;7&#34; //Default to 7 day(s)
- 
- def excludeUnACKedAlerts = hostProps.get(&#34;alert.analysis.excludeUnACKedAlerts&#34;) ?: hostProps.get(&#34;alert.duration.excludeUnACKedAlerts&#34;) ?: &#34;false&#34; //Default to false
- def excludeSDTedAlerts = hostProps.get(&#34;alert.analysis.excludeSDTedAlerts&#34;) ?: hostProps.get(&#34;alert.duration.excludeSDTedAlerts&#34;) ?: &#34;false&#34; //Default to false
- def datasourceFilter = hostProps.get(&#34;alert.analysis.datasourceList&#34;) ?: hostProps.get(&#34;alert.duration.datasourceList&#34;) ?: &#34;*&#34; //Default to include all datasources
- 
- def additionalGroupIds = hostProps.get(&#34;alert.analysis.includeGroupIds&#34;) ?: hostProps.get(&#34;alert.duration.includeGroupIds&#34;) ?: null //Comma seperated list of group ids to include in discovery
+import groovy.json.JsonSlurper
+import com.santaba.agent.util.Settings
+import com.santaba.agent.live.LiveHostSet
+import org.apache.commons.codec.binary.Hex
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
+import java.security.MessageDigest
+import groovy.json.*
+import java.util.concurrent.*
+import java.util.Arrays
 
- def maxAlertCacheSize = 10 //Number of scriptCache keys to utilize since max cache size is limited to around 20,000 alerts
- def portalName = hostProps.get(&#34;lmaccount&#34;)    ?: Settings.getSetting(Settings.AGENT_COMPANY)
- Map proxyInfo  = getProxyInfo()
- 
- /*Calculate start and end date for alert query*/
- int timePeriod = 24 * lookbackPeriod.toInteger() //hours for rolling average
- Date now = new Date()
- long endEpoch = now.getTime() / 1000 //in seconds
- long startEpoch = endEpoch - (timePeriod*3600)
- 
- def SDTFilter = &#34;*&#34;
- def ACKFilter = &#34;*&#34;
- 
- if(excludeUnACKedAlerts == &#34;false&#34;){ACKFilter = &#34;*&#34;}
- if(excludeSDTedAlerts == &#34;true&#34;){SDTFilter = &#34;false&#34;}
- 
- def propfilter = &#34;,acked:\&#34;${ACKFilter}\&#34;,sdted:\&#34;${SDTFilter}\&#34;,instanceName~\&#34;${datasourceFilter.replace(&#34;,&#34;, &#34;|&#34;)}\&#34;&#34;
- 
- def filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;:${startEpoch}&#34; + propfilter
- def fields = &#34;severity,monitorObjectId,monitorObjectGroups,id,startEpoch,endEpoch,acked,sdted&#34;
- 
- def alerts
- def alertSize
- def maxQuery = 0
- def scriptCache
- def cacheTimeout = 3600 // 1 hour
- 
- def cacheHit = 0
- def previousCacheSize = 0
- def currentCacheSize = 0
- def addedToCache = 0
- def removedFromCache = 0
- def resourcesInCache = 0
- def resourcesCacheHit = 0
+String apiId   = hostProps.get(&quot;lmaccess.id&quot;)  ?: hostProps.get(&quot;logicmonitor.access.id&quot;)
+String apiKey  = hostProps.get(&quot;lmaccess.key&quot;) ?: hostProps.get(&quot;logicmonitor.access.key&quot;)
+def lookbackPeriod = hostProps.get(&quot;alert.analysis.period&quot;) ?: hostProps.get(&quot;alert.duration.period&quot;) ?: &quot;30&quot; //Default to 30 day(s)
 
- def deviceGroupsInCache = 0
- def deviceGroupsCacheHit = 0
- 
- def elapsedTime
- def previousRun
- 
- def devices
- 
- try{
- 
-     scriptCache = this.class.classLoader.loadClass(&#34;com.santaba.agent.util.script.ScriptCache&#34;).getCache();
+def excludeUnACKedAlerts = hostProps.get(&quot;alert.analysis.excludeUnACKedAlerts&quot;) ?: hostProps.get(&quot;alert.duration.excludeUnACKedAlerts&quot;) ?: &quot;false&quot; //Default to false
+def excludeSDTedAlerts = hostProps.get(&quot;alert.analysis.excludeSDTedAlerts&quot;) ?: hostProps.get(&quot;alert.duration.excludeSDTedAlerts&quot;) ?: &quot;false&quot; //Default to false
+def datasourceFilter = hostProps.get(&quot;alert.analysis.datasourceList&quot;) ?: hostProps.get(&quot;alert.duration.datasourceList&quot;) ?: &quot;*&quot; //Default to include all datasources
 
-     /*Collect device groups*/
-     //scriptCache.remove(&#34;DeviceAlertStats-deviceGroupCache&#34;)
-     //scriptCache.remove(&#34;DeviceAlertStats-deviceGroupCache-Expiration&#34;)
-     String deviceGroupCache = scriptCache.get(&#34;DeviceAlertStats-deviceGroupCache&#34;);
-     String deviceGroupCacheExp = scriptCache.get(&#34;DeviceAlertStats-deviceGroupCache-Expiration&#34;);
+def additionalGroupIds = hostProps.get(&quot;alert.analysis.includeGroupIds&quot;) ?: hostProps.get(&quot;alert.duration.includeGroupIds&quot;) ?: null //Comma seperated list of group ids to include in discovery
 
-    if(deviceGroupCacheExp){
-        previousRun = Long.valueOf(deviceGroupCacheExp)
-        elapsedTime = endEpoch - previousRun
-     }
+// IMPROVED: Configurable cache size for large environments
+def maxAlertCacheSize = hostProps.get(&quot;alert.analysis.maxAlertCachePartitions&quot;)?.toInteger() ?: 10
 
-     if(deviceGroupCache == null || elapsedTime &#62;= 3000){
+// Debug mode for additional output
+debugMode = hostProps.get(&quot;alert.analysis.debug&quot;)?.toBoolean() ?: false
+def portalName = hostProps.get(&quot;lmaccount&quot;)    ?: Settings.getSetting(Settings.AGENT_COMPANY)
+Map proxyInfo  = getProxyInfo()
 
-         /*Grab device by type*/
-         devicesByTypeId = (apiGetManyV2(portalName, apiId, apiKey, &#34;/device/groups&#34;, proxyInfo, [&#39;fields&#39;:&#34;id&#34;,&#39;filter&#39;:&#34;name%3A%22Devices%20by%20Type%22&#34;,&#39;size&#39;:1000]))[0].id
+// Performance and timeout management (globally accessible)
+SCRIPT_START_TIME = System.currentTimeMillis()
+MAX_EXECUTION_TIME = 110000 // 110 seconds (10s buffer)
+def executionMetrics = [:]
 
-         deviceGroups = apiGetManyV2(portalName, apiId, apiKey, &#34;/device/groups/${devicesByTypeId}/groups&#34;, proxyInfo, [&#39;fields&#39;:&#34;id,name,fullPath&#34;,&#39;size&#39;:1000,&#39;sort&#39;:&#34;displayName&#34;])
+// IMPROVED: Track success/failure of each component
+def componentStatus = [
+    deviceGroups: [success: false, cached: false, count: 0, error: null],
+    devices: [success: false, cached: false, count: 0, error: null],
+    alerts: [success: false, cached: false, count: 0, error: null]
+]
 
-        if(additionalGroupIds){
-            additionalGroupIds.split(&#39;,&#39;).each { group -&#62;
-                additionalGroup = apiGetV2(portalName, apiId, apiKey, &#34;/device/groups/${group}&#34;, proxyInfo, [&#39;fields&#39;:&#34;id,name,fullPath&#34;])
-                deviceGroups.add(additionalGroup)
+/*Calculate start and end date for alert query*/
+int timePeriod = 24 * lookbackPeriod.toInteger() //hours for rolling average
+Date now = new Date()
+long endEpoch = now.getTime() / 1000 //in seconds
+long startEpoch = endEpoch - (timePeriod*3600)
+
+def SDTFilter = &quot;*&quot;
+def ACKFilter = &quot;*&quot;
+
+if(excludeUnACKedAlerts == &quot;false&quot;){ACKFilter = &quot;*&quot;}
+if(excludeSDTedAlerts == &quot;true&quot;){SDTFilter = &quot;false&quot;}
+
+def propfilter = &quot;,acked:\&quot;${ACKFilter}\&quot;,sdted:\&quot;${SDTFilter}\&quot;,instanceName~\&quot;${datasourceFilter.replace(&quot;,&quot;, &quot;|&quot;)}\&quot;&quot;
+
+// V4: CHANGED - Use startEpoch instead of endEpoch for better alert filtering
+def filter = &quot;cleared:\&quot;True\&quot;,startEpoch&gt;:${startEpoch}&quot; + propfilter
+def fields = &quot;severity,monitorObjectId,monitorObjectGroups,id,startEpoch,endEpoch,acked,sdted&quot;
+
+def alerts
+def alertSize
+def maxQuery = 0
+def scriptCache
+// Optimized cache timeouts for different data types (max 24 hours)
+def alertCacheTimeout = 86400 // 24 hours - historical alerts don&#x27;t change
+def resourceCacheTimeout = 3600 * 4 // 4 hours - devices change infrequently
+def groupCacheTimeout = 3600 * 8 // 8 hours - device groups change rarely
+def cacheTimeout = alertCacheTimeout // Default for backward compatibility
+
+def cacheHit = 0
+def previousCacheSize = 0
+def currentCacheSize = 0
+def addedToCache = 0
+def removedFromCache = 0
+def resourcesInCache = 0
+def resourcesCacheHit = 0
+
+def deviceGroupsInCache = 0
+def deviceGroupsCacheHit = 0
+
+def elapsedTime
+def previousRun
+
+def devices
+def deviceGroups
+
+// Utility functions for performance and timeout management
+def trackPerformance = { String operation, Closure code -&gt;
+    def startTime = System.currentTimeMillis()
+    try {
+        def result = code()
+        def duration = System.currentTimeMillis() - startTime
+        executionMetrics[operation] = duration
+        return result
+    } catch (Exception e) {
+        println &quot;${operation}Error=1&quot;
+        throw e
+    }
+}
+
+def checkTimeout = { String operation -&gt;
+    if ((System.currentTimeMillis() - SCRIPT_START_TIME) &gt;= MAX_EXECUTION_TIME) {
+        throw new Exception(&quot;Script timeout during: ${operation}&quot;)
+    }
+}
+
+// IMPROVED: Try-catch wrapper for each component
+def safeExecute = { String component, Closure code -&gt;
+    try {
+        def result = code()
+        componentStatus[component].success = true
+        return result
+    } catch (Exception e) {
+        componentStatus[component].success = false
+        componentStatus[component].error = e.getMessage()
+        println &quot;${component}Error=1&quot;
+        println &quot;${component}ErrorMessage=${e.getMessage()}&quot;
+        return null
+    }
+}
+
+try {
+    scriptCache = this.class.classLoader.loadClass(&quot;com.santaba.agent.util.script.ScriptCache&quot;).getCache();
+
+    // IMPROVED: Process device groups independently
+    safeExecute(&quot;deviceGroups&quot;) {
+        String deviceGroupCache = scriptCache.get(&quot;DeviceAlertStats-deviceGroupCache&quot;);
+        String deviceGroupCacheExp = scriptCache.get(&quot;DeviceAlertStats-deviceGroupCache-Expiration&quot;);
+
+        if(deviceGroupCacheExp){
+            previousRun = Long.valueOf(deviceGroupCacheExp)
+            elapsedTime = endEpoch - previousRun
+        }
+
+        if(deviceGroupCache == null || elapsedTime &gt;= 3000){
+            /*Grab device by type*/
+            devicesByTypeId = (apiGetManyV2(portalName, apiId, apiKey, &quot;/device/groups&quot;, proxyInfo, [&#x27;fields&#x27;:&quot;id&quot;,&#x27;filter&#x27;:&quot;name%3A%22Devices%20by%20Type%22&quot;,&#x27;size&#x27;:1000]))[0].id
+            deviceGroups = apiGetManyV2(portalName, apiId, apiKey, &quot;/device/groups/${devicesByTypeId}/groups&quot;, proxyInfo, [&#x27;fields&#x27;:&quot;id,name,fullPath&quot;,&#x27;size&#x27;:1000,&#x27;sort&#x27;:&quot;+displayName&quot;])
+
+            if(additionalGroupIds){
+                additionalGroupIds.split(&#x27;,&#x27;).each { group -&gt;
+                    additionalGroup = apiGetV2(portalName, apiId, apiKey, &quot;/device/groups/${group}&quot;, proxyInfo, [&#x27;fields&#x27;:&quot;id,name,fullPath&quot;])
+                    deviceGroups.add(additionalGroup)
+                }
+            }
+
+            if(deviceGroups){
+                deviceGroupsJson = new JsonBuilder( deviceGroups ).toPrettyString()
+                deviceGroupsExp = Long.toString(endEpoch)
+                scriptCache.set(&quot;DeviceAlertStats-deviceGroupCache&quot;,deviceGroupsJson,groupCacheTimeout * 1000);
+                scriptCache.set(&quot;DeviceAlertStats-deviceGroupCache-Expiration&quot;,deviceGroupsExp,groupCacheTimeout * 1000);
+                deviceGroupsInCache = deviceGroups.size()
+                componentStatus.deviceGroups.count = deviceGroups.size()
             }
         }
-
-         if(deviceGroups){
-             deviceGroupsJson = new JsonBuilder( deviceGroups ).toPrettyString()
-             deviceGroupsExp = Long.toString(endEpoch)
-             scriptCache.set(&#34;DeviceAlertStats-deviceGroupCache&#34;,deviceGroupsJson,cacheTimeout * 1000);
-             scriptCache.set(&#34;DeviceAlertStats-deviceGroupCache-Expiration&#34;,deviceGroupsExp,cacheTimeout * 1000);
-             deviceGroupsInCache = deviceGroups.size()
-         }
-     }
-     else{
-         deviceGroups = new JsonSlurper().parseText(deviceGroupCache)
-         deviceGroupsInCache = deviceGroups.size()
-         deviceGroupsCacheHit = 1
-     }
-     
-     /*Collect resources*/
-     //scriptCache.remove(&#34;DeviceAlertStats-ResourceCache&#34;)
-     //scriptCache.remove(&#34;DeviceAlertStats-ResourceCache-Expiration&#34;)
-     String resourceCache = scriptCache.get(&#34;DeviceAlertStats-ResourceCache&#34;);
-     String resourceCacheExp = scriptCache.get(&#34;DeviceAlertStats-ResourceCache-Expiration&#34;);
-     
-     if(resourceCacheExp){
-         previousRun = Long.valueOf(resourceCacheExp)
-         elapsedTime = endEpoch - previousRun
-     }
- 
-     if(resourceCache == null || elapsedTime &#62;= 3000){
-         /*Grab resource*/
-         devices = apiGetManyV2(portalName, apiId, apiKey, &#34;/device/devices&#34;, proxyInfo, [&#39;fields&#39;:&#34;id,displayName,deviceType&#34;,&#39;size&#39;:1000,&#39;sort&#39;:&#34;displayName&#34;])
-         if(devices){
-             devicesJson = new JsonBuilder( devices ).toPrettyString()
-             devicesExp = Long.toString(endEpoch)
-             scriptCache.set(&#34;DeviceAlertStats-ResourceCache&#34;,devicesJson,cacheTimeout * 1000);
-             scriptCache.set(&#34;DeviceAlertStats-ResourceCache-Expiration&#34;,devicesExp,cacheTimeout * 1000);
-             resourcesInCache = devices.size()
-         }
-     }
-     else{
-         devices = new JsonSlurper().parseText(resourceCache)
-         resourcesInCache = devices.size()
-         resourcesCacheHit = 1
-     }
- 
-    /*Check if options changed, if so purge cache and rebuilt*/
-     String alertsCacheOptions = scriptCache.get(&#34;DeviceAlertStats-AlertsCache-Options&#34;);
- 
-     if(alertsCacheOptions){
-        def alertCacheObject = new JsonSlurper().parseText(alertsCacheOptions)
-        if((alertCacheObject.excludeUnACKedAlerts.toString() != excludeUnACKedAlerts) || (alertCacheObject.excludeSDTedAlerts.toString() != excludeSDTedAlerts) || (alertCacheObject.datasourceFilter.toString() != datasourceFilter) || (alertCacheObject.lookbackPeriod.toString() != lookbackPeriod)){
-            //scriptCache.remove(&#34;DeviceAlertStats-AlertsCache&#34;)
-            removeAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache)
-
-            def alertOptions = new JsonSlurper()
-            def alertObject = &#34;{\&#34;excludeUnACKedAlerts\&#34;: ${excludeUnACKedAlerts},\&#34;excludeSDTedAlerts\&#34;: ${excludeSDTedAlerts},\&#34;datasourceFilter\&#34;: \&#34;${datasourceFilter}\&#34;,\&#34;lookbackPeriod\&#34;: ${lookbackPeriod}}&#34;
-            scriptCache.set(&#34;DeviceAlertStats-AlertsCache-Options&#34;,alertObject,cacheTimeout * 1000);
+        else{
+            deviceGroups = new JsonSlurper().parseText(deviceGroupCache)
+            deviceGroupsInCache = deviceGroups.size()
+            deviceGroupsCacheHit = 1
+            componentStatus.deviceGroups.cached = true
+            componentStatus.deviceGroups.count = deviceGroups.size()
         }
-     }
-     else{
-        def alertOptions = new JsonSlurper()
-        def alertObject = &#34;{\&#34;excludeUnACKedAlerts\&#34;: ${excludeUnACKedAlerts},\&#34;excludeSDTedAlerts\&#34;: ${excludeSDTedAlerts},\&#34;datasourceFilter\&#34;: \&#34;${datasourceFilter}\&#34;,\&#34;lookbackPeriod\&#34;: ${lookbackPeriod}}&#34;
-        scriptCache.set(&#34;DeviceAlertStats-AlertsCache-Options&#34;,alertObject,cacheTimeout * 1000);
-     }
-     
-     /*Collect alerts*/
-    //scriptCache.remove(&#34;DeviceAlertStats-AlertsCache&#34;)
-    //removeAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache)
-     //String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
-     String alertsCache = getAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache)
- 
-     if(alertsCache == null){
-         /*Grab alerts*/
-         alerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
-         alertSize = alerts.size()
+    }
 
-         alerts = formatGroupIds(alerts)
- 
-         /*We reached 10000 view limit, perform another search starting with the oldest returned alert*/
-         while(alertSize == 10000 &#38;&#38; maxQuery &#60; 5){
-             def lastEpoch = alerts.endEpoch.max()
-             filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
-             def nextAlerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
-             alertSize = nextAlerts.size()
+    // IMPROVED: Process devices independently
+    safeExecute(&quot;devices&quot;) {
+        String resourceCache = scriptCache.get(&quot;DeviceAlertStats-ResourceCache&quot;);
+        String resourceCacheExp = scriptCache.get(&quot;DeviceAlertStats-ResourceCache-Expiration&quot;);
 
-             nextAlerts = formatGroupIds(nextAlerts)
+        if(resourceCacheExp){
+            previousRun = Long.valueOf(resourceCacheExp)
+            elapsedTime = endEpoch - previousRun
+        }
 
-             alerts.addAll(nextAlerts)
-             maxQuery++
-         }
-         /*If we have alerts store them in script cache*/
-         if(alerts){
-             currentCacheSize = alerts.size()
-             addedToCache = alerts.size()
-             setAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache,alerts,cacheTimeout)
-             //alertsJson = new JsonBuilder( alerts ).toPrettyString()
-             //scriptCache.set(&#34;DeviceAlertStats-AlertsCache&#34;,alertsJson,cacheTimeout * 1000);
-         }
-     }
-     else{
-         cacheHit = 1
-         cachedAlerts = new JsonSlurper().parseText(alertsCache)
-         previousCacheSize = cachedAlerts.size()
-         def lastEpoch = cachedAlerts.endEpoch.max()
- 
-         /*Purge old alerts that fall outside scope of duration period*/
-         cachedAlerts.removeAll { it.endEpoch &#60;= startEpoch }
-         removedFromCache = cachedAlerts.size()
- 
-         /*Grab latest closed alerts*/
-         filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
-         alerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
-         alertSize = alerts.size()
+        if(resourceCache == null || elapsedTime &gt;= 3000){
+            /*Grab resource*/
+            devices = apiGetManyV2(portalName, apiId, apiKey, &quot;/device/devices&quot;, proxyInfo, [&#x27;fields&#x27;:&quot;id,displayName,deviceType&quot;,&#x27;size&#x27;:1000,&#x27;sort&#x27;:&quot;+displayName&quot;])
+            if(devices){
+                devicesJson = new JsonBuilder( devices ).toPrettyString()
+                devicesExp = Long.toString(endEpoch)
+                scriptCache.set(&quot;DeviceAlertStats-ResourceCache&quot;,devicesJson,resourceCacheTimeout * 1000);
+                scriptCache.set(&quot;DeviceAlertStats-ResourceCache-Expiration&quot;,devicesExp,resourceCacheTimeout * 1000);
+                resourcesInCache = devices.size()
+                componentStatus.devices.count = devices.size()
+            }
+        }
+        else{
+            devices = new JsonSlurper().parseText(resourceCache)
+            resourcesInCache = devices.size()
+            resourcesCacheHit = 1
+            componentStatus.devices.cached = true
+            componentStatus.devices.count = devices.size()
+        }
+    }
 
-         alerts = formatGroupIds(alerts)
+    // V4: IMPROVED - Process alerts with proper API sorting and offset pagination
+    safeExecute(&quot;alerts&quot;) {
+        /*Check if options changed, if so purge cache and rebuilt*/
+        String alertsCacheOptions = scriptCache.get(&quot;DeviceAlertStats-AlertsCache-Options&quot;);
 
-         /*We reached 10000 view limit, perform another search starting with the oldest returned alert*/
-         while(alertSize == 10000 &#38;&#38; maxQuery &#60; 5){
-             lastEpoch = alerts.endEpoch.max()
-             filter = &#34;cleared:\&#34;True\&#34;,endEpoch&#62;${lastEpoch}&#34; + propfilter
-             def nextAlerts = apiGetManyV2(portalName, apiId, apiKey, &#34;/alert/alerts&#34;, proxyInfo, [&#39;filter&#39;:filter,&#39;fields&#39;:fields,&#39;size&#39;:1000])
-             alertSize = nextAlerts.size()
+        if(alertsCacheOptions){
+            def alertCacheObject = new JsonSlurper().parseText(alertsCacheOptions)
+            if((alertCacheObject.excludeUnACKedAlerts.toString() != excludeUnACKedAlerts) ||
+               (alertCacheObject.excludeSDTedAlerts.toString() != excludeSDTedAlerts) ||
+               (alertCacheObject.datasourceFilter.toString() != datasourceFilter) ||
+               (alertCacheObject.lookbackPeriod.toString() != lookbackPeriod)){
+                removeAlertCache(maxAlertCacheSize,&quot;DeviceAlertStats-AlertsCache&quot;,scriptCache)
 
-             nextAlerts = formatGroupIds(nextAlerts)
+                def alertOptions = new JsonSlurper()
+                def alertObject = &quot;{\&quot;excludeUnACKedAlerts\&quot;: ${excludeUnACKedAlerts},\&quot;excludeSDTedAlerts\&quot;: ${excludeSDTedAlerts},\&quot;datasourceFilter\&quot;: \&quot;${datasourceFilter}\&quot;,\&quot;lookbackPeriod\&quot;: ${lookbackPeriod}}&quot;
+                scriptCache.set(&quot;DeviceAlertStats-AlertsCache-Options&quot;,alertObject,alertCacheTimeout * 1000);
+            }
+        }
+        else{
+            def alertOptions = new JsonSlurper()
+            def alertObject = &quot;{\&quot;excludeUnACKedAlerts\&quot;: ${excludeUnACKedAlerts},\&quot;excludeSDTedAlerts\&quot;: ${excludeSDTedAlerts},\&quot;datasourceFilter\&quot;: \&quot;${datasourceFilter}\&quot;,\&quot;lookbackPeriod\&quot;: ${lookbackPeriod}}&quot;
+            scriptCache.set(&quot;DeviceAlertStats-AlertsCache-Options&quot;,alertObject,cacheTimeout * 1000);
+        }
 
-             alerts.addAll(nextAlerts)
-             maxQuery++
-         }
-         /*If we have alerts store them in script cache*/
-         addedToCache = alerts.size()
-         alerts.addAll(cachedAlerts)
-         setAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache,alerts,cacheTimeout)
-         //alertsJson = new JsonBuilder( alerts ).toPrettyString()
-         //scriptCache.set(&#34;DeviceAlertStats-AlertsCache&#34;,alertsJson,cacheTimeout * 1000);
-         currentCacheSize = alerts.size()
-         removedFromCache = previousCacheSize - removedFromCache
-     }
- 
-     println &#34;alertCacheHit=${cacheHit}&#34;
-     println &#34;currentCacheSize=${currentCacheSize}&#34;
-     println &#34;previousCacheSize=${previousCacheSize}&#34;
-     println &#34;removedFromCache=${removedFromCache}&#34;
-     println &#34;addedToCache=${addedToCache}&#34;
-     println &#34;lookbackPeriod=${lookbackPeriod}&#34;
-     println &#34;resourcesInCache=${resourcesInCache}&#34;
-     println &#34;resourcesCacheHit=${resourcesCacheHit}&#34;
-     println &#34;deviceGroupsInCache=${deviceGroupsInCache}&#34;
-     println &#34;deviceGroupsCacheHit=${deviceGroupsCacheHit}&#34;
- }
- catch (Exception ex) {
-     println ex
-     return -1
- }
- 
- def removeAlertCache(cacheLimit,cacheName,cacheObject){
+        checkTimeout(&quot;Alert cache state check&quot;)
+
+        // V4: Check if we have existing cache and use incremental collection
+        def cacheExists = isCachePopulated(maxAlertCacheSize, &quot;DeviceAlertStats-AlertsCache&quot;, scriptCache)
+
+        if (!cacheExists) {
+            // First run - collect alerts using time-limited iterations
+            if (debugMode) println &quot;InitialCacheCreation=1&quot;
+
+            def allAlerts = []
+            def totalCollected = 0
+            def apiIterations = 0
+
+            // V4: Collect alerts in 9k chunks with epoch-based pagination
+            def currentFilter = filter  // Start with base filter
+
+            while (!checkTimeoutHard() &amp;&amp; apiIterations &lt; 20) { // Max 20 iterations
+                checkTimeout(&quot;Alert collection iteration ${apiIterations + 1}&quot;)
+
+                def chunkResult = trackPerformance(&quot;alertIteration${apiIterations + 1}&quot;) {
+                    // Collect up to 9k alerts using multiple 1k API calls
+                    collectAlertChunk(portalName, apiId, apiKey, proxyInfo, currentFilter, fields)
+                }
+
+                def iterationAlerts = chunkResult.alerts
+                def lastTotal = chunkResult.lastTotal
+                def hasMoreResults = chunkResult.hasMore
+
+                if (!iterationAlerts || iterationAlerts.size() == 0) {
+                    if (debugMode) println &quot;NoMoreAlerts=1&quot;
+                    break
+                }
+
+                iterationAlerts = formatGroupIds(iterationAlerts)
+                allAlerts.addAll(iterationAlerts)
+                totalCollected += iterationAlerts.size()
+                apiIterations++
+
+                if (debugMode) {
+                    println &quot;Iteration${apiIterations}Collected=${iterationAlerts.size()}&quot;
+                    println &quot;TotalCollected=${totalCollected}&quot;
+                    println &quot;ServerTotal=${lastTotal}&quot;
+                    println &quot;HasMoreResults=${hasMoreResults ? 1 : 0}&quot;
+                }
+
+                // Stop if no more results available
+                if (!hasMoreResults) {
+                    if (debugMode) println &quot;ReachedEndOfResults=1&quot;
+                    break
+                }
+
+                // Stop if we got less than expected (approaching end)
+                if (iterationAlerts.size() &lt; 9000) {
+                    if (debugMode) println &quot;PartialChunkReceived=${iterationAlerts.size()}&quot;
+                    break
+                }
+
+                // Prepare next iteration with new epoch filter
+                def lastStartEpoch = iterationAlerts.collect { it.startEpoch }.max()
+                currentFilter = &quot;cleared:\&quot;True\&quot;,startEpoch&gt;${lastStartEpoch}&quot; + propfilter
+                if (debugMode) println &quot;NextIterationFilter=startEpoch&gt;${lastStartEpoch}&quot;
+            }
+
+            if(allAlerts.size() &gt; 0){
+                currentCacheSize = allAlerts.size()
+                addedToCache = allAlerts.size()
+
+                try {
+                    trackPerformance(&quot;alertCacheStorage&quot;) {
+                        setAlertCacheFixed(maxAlertCacheSize,&quot;DeviceAlertStats-AlertsCache&quot;,scriptCache,allAlerts,cacheTimeout)
+                    }
+                    componentStatus.alerts.count = allAlerts.size()
+                    println &quot;InitialCacheComplete=1&quot;
+                    println &quot;ApiIterations=${apiIterations}&quot;
+                } catch (Exception e) {
+                    println &quot;PartialAlertCache=1&quot;
+                    println &quot;AlertsCollected=${allAlerts.size()}&quot;
+                    println &quot;CacheError=${e.getMessage()}&quot;
+                    componentStatus.alerts.error = &quot;Partial: ${e.getMessage()}&quot;
+                    componentStatus.alerts.count = allAlerts.size()
+                }
+            }
+        } else {
+            // Incremental update - only get new alerts since last cached
+            println &quot;IncrementalCacheUpdate=1&quot;
+            cacheHit = 1
+
+            // V4: Get the latest startEpoch from cache (not endEpoch)
+            def lastCachedStartEpoch = getLastCachedStartEpoch(maxAlertCacheSize, &quot;DeviceAlertStats-AlertsCache&quot;, scriptCache)
+
+            // Clean old alerts from cache first
+            previousCacheSize = trackPerformance(&quot;cacheCleanup&quot;) {
+                cleanOldAlertsFromCache(maxAlertCacheSize, &quot;DeviceAlertStats-AlertsCache&quot;, scriptCache, startEpoch, cacheTimeout)
+            }
+
+            currentCacheSize = previousCacheSize
+
+            // V4: Get new alerts since last cached startEpoch
+            def newAlertFilter = &quot;cleared:\&quot;True\&quot;,startEpoch&gt;${lastCachedStartEpoch}&quot; + propfilter
+            def newAlerts = []
+            def totalNewCollected = 0
+            def newApiIterations = 0
+
+            // Collect new alerts in iterations until timeout
+            def currentNewFilter = newAlertFilter
+
+            while (!checkTimeoutHard() &amp;&amp; newApiIterations &lt; 9) { // Max 9 iterations for incremental
+                checkTimeout(&quot;New alert collection iteration ${newApiIterations + 1}&quot;)
+
+                def chunkResult = trackPerformance(&quot;newAlertIteration${newApiIterations + 1}&quot;) {
+                    collectAlertChunk(portalName, apiId, apiKey, proxyInfo, currentNewFilter, fields)
+                }
+
+                def iterationAlerts = chunkResult.alerts
+                def totalOnServer = chunkResult.lastTotal
+                def hasMoreResults = chunkResult.hasMore
+
+                if (!iterationAlerts || iterationAlerts.size() == 0) {
+                    if (debugMode) println &quot;NoNewAlertsFound=1&quot;
+                    break
+                }
+
+                iterationAlerts = formatGroupIds(iterationAlerts)
+                newAlerts.addAll(iterationAlerts)
+                totalNewCollected += iterationAlerts.size()
+                newApiIterations++
+
+                if (debugMode) {
+                    println &quot;NewIteration${newApiIterations}Collected=${iterationAlerts.size()}&quot;
+                    println &quot;TotalNewCollected=${totalNewCollected}&quot;
+                    println &quot;NewServerTotal=${totalOnServer}&quot;
+                    println &quot;NewHasMoreResults=${hasMoreResults ? 1 : 0}&quot;
+                }
+
+                // Stop if no more results available
+                if (!hasMoreResults) {
+                    if (debugMode) println &quot;ReachedEndOfNewResults=1&quot;
+                    break
+                }
+
+                // Stop if we got less than expected
+                if (iterationAlerts.size() &lt; 9000) {
+                    if (debugMode) println &quot;PartialNewChunkReceived=${iterationAlerts.size()}&quot;
+                    break
+                }
+
+                // Prepare next iteration with new epoch filter
+                def lastStartEpoch = iterationAlerts.collect { it.startEpoch }.max()
+                currentNewFilter = &quot;cleared:\&quot;True\&quot;,startEpoch&gt;${lastStartEpoch}&quot; + propfilter
+            }
+
+            if (newAlerts.size() &gt; 0) {
+                addedToCache = newAlerts.size()
+                try {
+                    trackPerformance(&quot;incrementalCacheUpdate&quot;) {
+                        addAlertsToCache(maxAlertCacheSize, &quot;DeviceAlertStats-AlertsCache&quot;, scriptCache, newAlerts, cacheTimeout)
+                    }
+                    currentCacheSize = getCurrentCacheSize(maxAlertCacheSize, &quot;DeviceAlertStats-AlertsCache&quot;, scriptCache)
+                    componentStatus.alerts.count = currentCacheSize
+                    componentStatus.alerts.cached = true
+                    if (debugMode) {
+                        println &quot;IncrementalComplete=1&quot;
+                        println &quot;NewApiIterations=${newApiIterations}&quot;
+                    }
+                } catch (Exception e) {
+                    if (debugMode) {
+                        println &quot;IncrementalUpdateFailed=1&quot;
+                        println &quot;NewAlertsCollected=${newAlerts.size()}&quot;
+                        println &quot;UpdateError=${e.getMessage()}&quot;
+                    }
+                    componentStatus.alerts.error = &quot;Incremental update failed&quot;
+                    componentStatus.alerts.count = previousCacheSize
+                }
+            } else {
+                addedToCache = 0
+                componentStatus.alerts.count = currentCacheSize
+                componentStatus.alerts.cached = true
+                if (debugMode) println &quot;NoNewAlerts=1&quot;
+            }
+
+            removedFromCache = Math.max(0, previousCacheSize - currentCacheSize + addedToCache)
+        }
+    }
+
+    // IMPROVED: Always output metrics, even with partial failures
+    def totalExecutionTime = System.currentTimeMillis() - SCRIPT_START_TIME
+
+    // Output alert cache metrics
+    println &quot;alertCacheHit=${cacheHit}&quot;
+    println &quot;currentCacheSize=${currentCacheSize}&quot;
+    println &quot;previousCacheSize=${previousCacheSize}&quot;
+    println &quot;removedFromCache=${removedFromCache}&quot;
+    println &quot;addedToCache=${addedToCache}&quot;
+    println &quot;lookbackPeriod=${lookbackPeriod}&quot;
+    println &quot;maxAlertCachePartitions=${maxAlertCacheSize}&quot;
+
+    // Output device/group cache metrics
+    println &quot;resourcesInCache=${resourcesInCache}&quot;
+    println &quot;resourcesCacheHit=${resourcesCacheHit}&quot;
+    println &quot;deviceGroupsInCache=${deviceGroupsInCache}&quot;
+    println &quot;deviceGroupsCacheHit=${deviceGroupsCacheHit}&quot;
+
+    // Output performance metrics
+    println &quot;totalExecutionTime=${totalExecutionTime}&quot;
+    println &quot;maxAlertQueryCount=${maxQuery}&quot;
+
+    // Output component status
+    println &quot;deviceGroupsSuccess=${componentStatus.deviceGroups.success ? 1 : 0}&quot;
+    println &quot;devicesSuccess=${componentStatus.devices.success ? 1 : 0}&quot;
+    println &quot;alertsSuccess=${componentStatus.alerts.success ? 1 : 0}&quot;
+
+    // Output individual operation timings
+    executionMetrics.each { operation, duration -&gt;
+        println &quot;${operation}=${duration}&quot;
+    }
+
+    // Memory cleanup
+    alerts?.clear()
+    deviceGroups?.clear()
+    devices?.clear()
+    executionMetrics?.clear()
+}
+catch (Exception ex) {
+    def executionTime = System.currentTimeMillis() - SCRIPT_START_TIME
+    println &quot;ScriptError=1&quot;
+    println &quot;ErrorMessage=${ex.getMessage()}&quot;
+    println &quot;ExecutionTimeAtError=${executionTime}&quot;
+    println &quot;TimeoutExceeded=${executionTime &gt;= MAX_EXECUTION_TIME ? 1 : 0}&quot;
+
+    // IMPROVED: Still output what we collected before error
+    println &quot;deviceGroupsInCache=${deviceGroupsInCache}&quot;
+    println &quot;deviceGroupsCacheHit=${deviceGroupsCacheHit}&quot;
+    println &quot;resourcesInCache=${resourcesInCache}&quot;
+    println &quot;resourcesCacheHit=${resourcesCacheHit}&quot;
+    println &quot;alertCacheHit=${cacheHit}&quot;
+    println &quot;currentCacheSize=${currentCacheSize}&quot;
+
+    // Output any performance metrics we collected before the error
+    executionMetrics.each { operation, duration -&gt;
+        println &quot;${operation}=${duration}&quot;
+    }
+
+    println ex
+    return -1
+}
+
+// V4: NEW - Hard timeout check (10 seconds remaining)
+def checkTimeoutHard() {
+    def remainingTime = MAX_EXECUTION_TIME - (System.currentTimeMillis() - SCRIPT_START_TIME)
+    return remainingTime &lt; 10000 // Stop with 10 seconds remaining
+}
+
+// V4: NEW - Collect up to 9k alerts using multiple 1k API calls
+def collectAlertChunk(portalName, apiId, apiKey, proxyInfo, filter, fields) {
+    def allAlerts = []
+    def lastTotal = 0
+    def hasMore = false
+    def offset = 0
+    def batchSize = 1000
+    def maxAlertsInChunk = 9000
+
+    while (allAlerts.size() &lt; maxAlertsInChunk &amp;&amp; !checkTimeoutHard()) {
+        def args = [
+            &#x27;filter&#x27;: filter,
+            &#x27;fields&#x27;: fields,
+            &#x27;size&#x27;: batchSize,
+            &#x27;offset&#x27;: offset,
+            &#x27;sort&#x27;: &#x27;+startEpoch&#x27;
+        ]
+
+        def response = apiGetV2(portalName, apiId, apiKey, &quot;/alert/alerts&quot;, proxyInfo, args)
+        if (response.get(&quot;errmsg&quot;, &quot;OK&quot;) != &quot;OK&quot;) {
+            throw new Exception(&quot;Santaba returned errormsg: ${response?.errmsg}&quot;)
+        }
+
+        def items = response.items ?: []
+        lastTotal = response.total ?: 0
+        hasMore = lastTotal &lt; 0
+
+        if (items.size() == 0) {
+            break // No more alerts in this batch
+        }
+
+        allAlerts.addAll(items)
+        offset += batchSize
+
+        if (debugMode) println &quot;    SubBatch: offset=${offset - batchSize}, got=${items.size()}, total=${lastTotal}, hasMore=${hasMore}&quot;
+
+        // Stop if we got fewer than requested (end of data)
+        if (items.size() &lt; batchSize) {
+            break
+        }
+
+        // Stop if we would exceed 9k in next iteration
+        if (allAlerts.size() + batchSize &gt; maxAlertsInChunk) {
+            break
+        }
+    }
+
+    return [
+        alerts: allAlerts,
+        lastTotal: lastTotal,
+        hasMore: hasMore
+    ]
+}
+
+
+// V4: NEW - Get last cached startEpoch instead of endEpoch
+def getLastCachedStartEpoch(cacheLimit, cacheName, cacheObject) {
+    def maxStartEpoch = 0
+
+    for (int i = 0; i &lt; cacheLimit; i++) {
+        def partitionJson = cacheObject.get(&quot;${cacheName}-${i}&quot;)
+        if (!partitionJson) break
+
+        try {
+            def partition = new JsonSlurper().parseText(partitionJson)
+            if (partition &amp;&amp; partition.size() &gt; 0) {
+                def partitionMax = partition.collect { it.startEpoch }.max()
+                if (partitionMax &gt; maxStartEpoch) {
+                    maxStartEpoch = partitionMax
+                }
+            }
+        } catch (Exception e) {
+            // Skip corrupted partition
+            continue
+        }
+    }
+
+    return maxStartEpoch
+}
+
+// V4: UPDATED - Clean based on startEpoch, not endEpoch
+def cleanOldAlertsFromCache(cacheLimit, cacheName, cacheObject, startEpoch, cacheTimeout) {
+    def totalValidAlerts = 0
+    def compactedPartitions = []
+    def partitionSize = 15000
+
+    // Read all partitions and filter out old alerts
+    for (int i = 0; i &lt; cacheLimit; i++) {
+        def partitionJson = cacheObject.get(&quot;${cacheName}-${i}&quot;)
+        if (!partitionJson) break
+
+        try {
+            def partition = new JsonSlurper().parseText(partitionJson)
+            // V4: Filter by startEpoch instead of endEpoch
+            def validAlerts = partition.findAll { it.startEpoch &gt; startEpoch }
+
+            if (validAlerts.size() &gt; 0) {
+                compactedPartitions.add(validAlerts)
+                totalValidAlerts += validAlerts.size()
+            }
+        } catch (Exception e) {
+            // Skip corrupted partition
+            continue
+        }
+    }
+
+    // Clear all partitions
+    removeAlertCache(cacheLimit, cacheName, cacheObject)
+
+    // Rebuild partitions with valid alerts only
+    def allValidAlerts = []
+    compactedPartitions.each { alerts -&gt; allValidAlerts.addAll(alerts) }
+
+    if (allValidAlerts.size() &gt; 0) {
+        // V4: Sort alerts by startEpoch to maintain chronological order
+        allValidAlerts = allValidAlerts.sort { it.startEpoch }
+
+        def newPartitions = allValidAlerts.collate(partitionSize)
+        newPartitions.eachWithIndex { alerts, i -&gt;
+            if (i &lt; cacheLimit) {
+                def alertsJson = new JsonBuilder(alerts).toString()
+                cacheObject.set(&quot;${cacheName}-${i}&quot;, alertsJson, cacheTimeout * 1000)
+            }
+        }
+    }
+
+    return totalValidAlerts
+}
+
+// NEW: Helper functions for incremental caching (keeping existing ones)
+def isCachePopulated(cacheLimit, cacheName, cacheObject) {
+    return cacheObject.get(&quot;${cacheName}-0&quot;) != null
+}
+
+def getCurrentCacheSize(cacheLimit, cacheName, cacheObject) {
+    def totalAlerts = 0
+
+    for (int i = 0; i &lt; cacheLimit; i++) {
+        def partitionJson = cacheObject.get(&quot;${cacheName}-${i}&quot;)
+        if (!partitionJson) break
+
+        try {
+            def partition = new JsonSlurper().parseText(partitionJson)
+            totalAlerts += partition.size()
+        } catch (Exception e) {
+            continue
+        }
+    }
+
+    return totalAlerts
+}
+
+def addAlertsToCache(cacheLimit, cacheName, cacheObject, newAlerts, cacheTimeout) {
+    def partitionSize = 15000
+
+    // V4: Sort new alerts by startEpoch before adding
+    newAlerts = newAlerts.sort { it.startEpoch }
+
+    // Find the last partition with space
+    def lastPartitionIndex = -1
+    def lastPartition = []
+
+    for (int i = 0; i &lt; cacheLimit; i++) {
+        def partitionJson = cacheObject.get(&quot;${cacheName}-${i}&quot;)
+        if (!partitionJson) {
+            lastPartitionIndex = i
+            break
+        } else {
+            try {
+                def partition = new JsonSlurper().parseText(partitionJson)
+                if (partition.size() &lt; partitionSize) {
+                    lastPartitionIndex = i
+                    lastPartition = partition
+                    break
+                }
+                lastPartitionIndex = i + 1
+            } catch (Exception e) {
+                // Corrupted partition, replace it
+                lastPartitionIndex = i
+                break
+            }
+        }
+    }
+
+    if (lastPartitionIndex &gt;= cacheLimit) {
+        throw new Exception(&quot;Cache partition limit reached&quot;)
+    }
+
+    def remainingAlerts = new ArrayList(newAlerts)
+
+    // Fill existing partial partition if exists
+    if (lastPartition.size() &gt; 0 &amp;&amp; lastPartition.size() &lt; partitionSize) {
+        def spaceAvailable = partitionSize - lastPartition.size()
+        def alertsToAdd = Math.min(spaceAvailable, remainingAlerts.size())
+
+        lastPartition.addAll(remainingAlerts.take(alertsToAdd))
+        remainingAlerts = remainingAlerts.drop(alertsToAdd)
+
+        def alertsJson = new JsonBuilder(lastPartition).toString()
+        cacheObject.set(&quot;${cacheName}-${lastPartitionIndex}&quot;, alertsJson, cacheTimeout * 1000)
+
+        lastPartitionIndex++
+    }
+
+    // Create new partitions for remaining alerts
+    while (remainingAlerts.size() &gt; 0 &amp;&amp; lastPartitionIndex &lt; cacheLimit) {
+        def alertsForPartition = remainingAlerts.take(partitionSize)
+        remainingAlerts = remainingAlerts.drop(partitionSize)
+
+        def alertsJson = new JsonBuilder(alertsForPartition).toString()
+        cacheObject.set(&quot;${cacheName}-${lastPartitionIndex}&quot;, alertsJson, cacheTimeout * 1000)
+
+        lastPartitionIndex++
+    }
+
+    if (remainingAlerts.size() &gt; 0) {
+        throw new Exception(&quot;Could not cache ${remainingAlerts.size()} alerts - partition limit reached&quot;)
+    }
+}
+
+// FIXED: Original cache functions with proper partition sizing
+def removeAlertCache(cacheLimit,cacheName,cacheObject){
     def i = 0
-    while(i &#60; cacheLimit){
-        String alertsCache = cacheObject.remove(&#34;${cacheName}-${i}&#34;);
+    while(i &lt; cacheLimit){
+        cacheObject.remove(&quot;${cacheName}-${i}&quot;)
         i++
     }
- }
+}
 
- def getAlertCache(cacheLimit,cacheName,cacheObject){
+def getAlertCache(cacheLimit,cacheName,cacheObject){
     def alerts = []
     def i = 0
-    while(i &#60; cacheLimit){
-        String alertsCache = cacheObject.get(&#34;${cacheName}-${i}&#34;);
-        // println &#34;Getting cache index: ${i}&#34;
+    while(i &lt; cacheLimit){
+        String alertsCache = cacheObject.get(&quot;${cacheName}-${i}&quot;);
         if(alertsCache == null){
             break
         }
@@ -324,161 +774,172 @@
             i++
         }
     }
-    // println &#34;Total cache size accross ${i} index(es), alert size ${alerts.size()}&#34;
     if(alerts){
-        return new JsonBuilder( alerts ).toPrettyString()
+        return new JsonBuilder( alerts ).toString()
     }
     else{
-        // println &#34;No cache found&#34;
         return null
     }
- }
+}
 
- def setAlertCache(cacheLimit,cacheName,cacheObject,cacheAlerts,cacheTimeout){
-    // println &#34;called to set alert cache: ${cacheAlerts.size()}&#34;
-    def alertLists = cacheAlerts.collate( 15000 )
-    alertLists.eachWithIndex{alerts, i -&#62;
-        // println &#34;Setting cache index: ${i}, alert size ${alerts.size()}&#34;
-        if(i &#60; cacheLimit){
-        alertsJson = new JsonBuilder( alerts ).toPrettyString()
-        cacheObject.set(&#34;${cacheName}-${i}&#34;,alertsJson,cacheTimeout * 1000);
-        }
-        else{
-            throw new Exception(&#34;Max alertCache partitions reached, consider lowering alert analysis period to a smaller number&#34;)
+// FIXED: Simple partition creation with 15k per partition
+def setAlertCacheFixed(cacheLimit,cacheName,cacheObject,cacheAlerts,cacheTimeout){
+    def partitionSize = 15000
+
+    // V4: Sort alerts by startEpoch before partitioning
+    cacheAlerts = cacheAlerts.sort { it.startEpoch }
+
+    // Clear old cache partitions first
+    removeAlertCache(cacheLimit, cacheName, cacheObject)
+
+    def alertLists = cacheAlerts.collate(partitionSize)
+
+    // Check partition count before processing
+    if (alertLists.size() &gt; cacheLimit) {
+        println &quot;WarnPartitionCount=${alertLists.size()}&quot;
+        println &quot;MaxPartitionsAllowed=${cacheLimit}&quot;
+        println &quot;AlertsToCache=${cacheAlerts.size()}&quot;
+        println &quot;PartitionSize=${partitionSize}&quot;
+
+        // Only cache what we can fit
+        alertLists = alertLists.take(cacheLimit)
+        println &quot;TruncatedToPartitions=${alertLists.size()}&quot;
+        println &quot;TruncatedToAlerts=${alertLists.size() * partitionSize}&quot;
+    }
+
+    alertLists.eachWithIndex { alerts, i -&gt;
+        if (i &lt; cacheLimit) {
+            def alertsJson = new JsonBuilder(alerts).toString()
+            cacheObject.set(&quot;${cacheName}-${i}&quot;, alertsJson, cacheTimeout * 1000)
+            alerts.clear()
         }
     }
- }
- 
- /* Generate auth for API calls. */
- static String generateAuth(id, key, path) {
-     Long epoch_time = System.currentTimeMillis()
-     Mac hmac = Mac.getInstance(&#34;HmacSHA256&#34;)
-     hmac.init(new SecretKeySpec(key.getBytes(), &#34;HmacSHA256&#34;))
-     def signature = Hex.encodeHexString(hmac.doFinal(&#34;GET${epoch_time}${path}&#34;.getBytes())).bytes.encodeBase64()
- 
-     return &#34;LMv1 ${id}:${signature}:${epoch_time}&#34;
- }
- 
- /* Paginated GET method. Returns a list of objects. */
- List apiGetManyV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
- 
-     def pageSize = args.get(&#39;size&#39;, 1000) // Default the page size to 1000 if not specified.
-     List items = []
- 
-     args[&#39;size&#39;] = pageSize
- 
-     def pageCount = 0
-     while (true) {
-         pageCount += 1
- 
-         // Updated the args
-         args[&#39;size&#39;] = pageSize
-         args[&#39;offset&#39;] = items.size()
- 
-         def response = apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
-         if (response.get(&#34;errmsg&#34;, &#34;OK&#34;) != &#34;OK&#34;) {
-             throw new Exception(&#34;Santaba returned errormsg: ${response?.errmsg}&#34;)
-         }
-         items.addAll(response.items)
- 
-         // If we recieved less than we asked for it means we are done
-         if (response.items.size() &#60; pageSize) break
-     }
-     return items
- }
+
+    // Store metadata
+    def metadata = new JsonBuilder([
+        partitions: Math.min(alertLists.size(), cacheLimit),
+        totalSize: Math.min(cacheAlerts.size(), cacheLimit * partitionSize),
+        partitionSize: partitionSize,
+        timestamp: System.currentTimeMillis(),
+        truncated: alertLists.size() &gt; cacheLimit,
+        sortedBy: &quot;startEpoch&quot;  // V4: Track sorting method
+    ]).toString()
+    cacheObject.set(&quot;${cacheName}-meta&quot;, metadata, cacheTimeout * 1000)
+}
 
 def formatGroupIds(alerts){
-    alerts.each{alert -&#62;
-        alert.monitorObjectGroups.each{group -&#62;
+    alerts.each{alert -&gt;
+        alert.monitorObjectGroups.each{group -&gt;
             if(alert.groupIds){
-                alert.groupIds = &#34;${alert.groupIds},${(group.findAll {it.key == &#39;id&#39;}).id}&#34;
+                alert.groupIds = &quot;${alert.groupIds},${(group.findAll {it.key == &#x27;id&#x27;}).id}&quot;
             }
             else{
-                alert.groupIds = &#34;${(group.findAll {it.key == &#39;id&#39;}).id}&#34;
+                alert.groupIds = &quot;${(group.findAll {it.key == &#x27;id&#x27;}).id}&quot;
             }
         }
-        alert.remove(&#39;monitorObjectGroups&#39;)
+        alert.remove(&#x27;monitorObjectGroups&#x27;)
     }
     return alerts
 }
- 
- /* Simple GET, returns a parsed json payload. No processing. */
- def apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
-     def request = rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
-     if (request.getResponseCode() == 200) {
-         def payload = new JsonSlurper().parseText(request.content.text)
-         return payload
-     }
-     else {
-         throw new Exception(&#34;Server return HTTP code ${request.getResponseCode()} for endpoint ${endPoint}&#34;)
-     }
- }
- 
- 
- /* Raw GET method. */
- def rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
-     def auth = generateAuth(apiId, apiKey, endPoint)
-     def headers = [&#34;Authorization&#34;: auth, &#34;Content-Type&#34;: &#34;application/json&#34;, &#34;X-Version&#34;:&#34;3&#34;]
-     def url = &#34;https://${portalName}.logicmonitor.com/santaba/rest${endPoint}&#34;
-     if (args) {
-         def encodedArgs = []
-         args.each{ k,v -&#62; 
-             if(k == &#34;filter&#34; || k == &#34;fields&#34; || k == &#34;sort&#34;){
-                 encodedArgs &#60;&#60; &#34;${k}=${v.toString()}&#34;
-             }
-             else{
-                 encodedArgs &#60;&#60; &#34;${k}=${java.net.URLEncoder.encode(v.toString(), &#34;UTF-8&#34;)}&#34;
-             }
-         }
-         url += &#34;?${encodedArgs.join(&#39;&#38;&#39;)}&#34;
-     }
- 
-     def request
-     if (proxyInfo.enabled) {
-         request = url.toURL().openConnection(proxyInfo.proxy)
-     }
-     else {
-         request = url.toURL().openConnection()
-     }
-     request.setRequestMethod(&#34;GET&#34;)
-     request.setDoOutput(true)
-     headers.each{ k,v -&#62;
-         request.addRequestProperty(k, v)
-     }
- 
-     return request
- }
- 
- /**
- * Get collector proxy settings
- * @return Map with proxy settings, empty map if proxy not set.
- */
- Map getProxyInfo() {
-     // Each property must be evaluated for null to determine whether to use collected value or fallback value
-     // Elvis operator does not play nice with booleans
-     // default to true in absence of property to use collectorProxy as determinant
-     Boolean deviceProxy = hostProps.get(&#34;proxy.enable&#34;)?.toBoolean()
-     deviceProxy = (deviceProxy != null) ? deviceProxy : true  
-     // if settings are not present, value should be false
-     Boolean collectorProxy = Settings.getSetting(&#34;proxy.enable&#34;)?.toBoolean()
-     collectorProxy = (collectorProxy != null) ? collectorProxy : false  
- 
-     Map proxyInfo = [:]
-     
-     if (deviceProxy &#38;&#38; collectorProxy) {
-         proxyInfo = [
-             enabled : true,
-             host : hostProps.get(&#34;proxy.host&#34;) ?: Settings.getSetting(&#34;proxy.host&#34;),
-             port : hostProps.get(&#34;proxy.port&#34;) ?: Settings.getSetting(&#34;proxy.port&#34;) ?: 3128,
-             user : Settings.getSetting(&#34;proxy.user&#34;),
-             pass : Settings.getSetting(&#34;proxy.pass&#34;)
-         ]
-     
-         proxyInfo[&#34;proxy&#34;] = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyInfo.host, proxyInfo.port.toInteger()))
-     }
- 
-     return proxyInfo
- }</value>
+
+// API helper functions (unchanged)
+static String generateAuth(id, key, path) {
+    Long epoch_time = System.currentTimeMillis()
+    Mac hmac = Mac.getInstance(&quot;HmacSHA256&quot;)
+    hmac.init(new SecretKeySpec(key.getBytes(), &quot;HmacSHA256&quot;))
+    def signature = Hex.encodeHexString(hmac.doFinal(&quot;GET${epoch_time}${path}&quot;.getBytes())).bytes.encodeBase64()
+
+    return &quot;LMv1 ${id}:${signature}:${epoch_time}&quot;
+}
+
+List apiGetManyV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+    def pageSize = args.get(&#x27;size&#x27;, 1000)
+    List items = []
+    args[&#x27;size&#x27;] = pageSize
+
+    def pageCount = 0
+    while (true) {
+        pageCount += 1
+        args[&#x27;size&#x27;] = pageSize
+        args[&#x27;offset&#x27;] = items.size()
+
+        def response = apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
+        if (response.get(&quot;errmsg&quot;, &quot;OK&quot;) != &quot;OK&quot;) {
+            throw new Exception(&quot;Santaba returned errormsg: ${response?.errmsg}&quot;)
+        }
+        items.addAll(response.items)
+
+        if (response.items.size() &lt; pageSize) break
+    }
+    return items
+}
+
+def apiGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+    def request = rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, args)
+    if (request.getResponseCode() == 200) {
+        def payload = new JsonSlurper().parseText(request.content.text)
+        return payload
+    }
+    else {
+        throw new Exception(&quot;Server return HTTP code ${request.getResponseCode()} for endpoint ${endPoint}&quot;)
+    }
+}
+
+def rawGetV2(portalName, apiId, apiKey, endPoint, proxyInfo, Map args=[:]) {
+    def auth = generateAuth(apiId, apiKey, endPoint)
+    def headers = [&quot;Authorization&quot;: auth, &quot;Content-Type&quot;: &quot;application/json&quot;, &quot;X-Version&quot;:&quot;3&quot;]
+    def url = &quot;https://${portalName}.logicmonitor.com/santaba/rest${endPoint}&quot;
+    if (args) {
+        def encodedArgs = []
+        args.each{ k,v -&gt;
+            if(k == &quot;filter&quot; || k == &quot;fields&quot; || k == &quot;sort&quot;){
+                encodedArgs &lt;&lt; &quot;${k}=${v.toString()}&quot;
+            }
+            else{
+                encodedArgs &lt;&lt; &quot;${k}=${java.net.URLEncoder.encode(v.toString(), &quot;UTF-8&quot;)}&quot;
+            }
+        }
+        url += &quot;?${encodedArgs.join(&#x27;&amp;&#x27;)}&quot;
+    }
+
+    def request
+    if (proxyInfo.enabled) {
+        request = url.toURL().openConnection(proxyInfo.proxy)
+    }
+    else {
+        request = url.toURL().openConnection()
+    }
+    request.setRequestMethod(&quot;GET&quot;)
+    request.setDoOutput(true)
+    headers.each{ k,v -&gt;
+        request.addRequestProperty(k, v)
+    }
+
+    return request
+}
+
+Map getProxyInfo() {
+    Boolean deviceProxy = hostProps.get(&quot;proxy.enable&quot;)?.toBoolean()
+    deviceProxy = (deviceProxy != null) ? deviceProxy : true
+    Boolean collectorProxy = Settings.getSetting(&quot;proxy.enable&quot;)?.toBoolean()
+    collectorProxy = (collectorProxy != null) ? collectorProxy : false
+
+    Map proxyInfo = [:]
+
+    if (deviceProxy &amp;&amp; collectorProxy) {
+        proxyInfo = [
+            enabled : true,
+            host : hostProps.get(&quot;proxy.host&quot;) ?: Settings.getSetting(&quot;proxy.host&quot;),
+            port : hostProps.get(&quot;proxy.port&quot;) ?: Settings.getSetting(&quot;proxy.port&quot;) ?: 3128,
+            user : Settings.getSetting(&quot;proxy.user&quot;),
+            pass : Settings.getSetting(&quot;proxy.pass&quot;)
+        ]
+
+        proxyInfo[&quot;proxy&quot;] = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyInfo.host, proxyInfo.port.toInteger()))
+    }
+
+    return proxyInfo
+}</value>
             <comment></comment>
         </attribute>
         <attribute>
@@ -514,7 +975,7 @@ def formatGroupIds(alerts){
         </attributes>
         <datapoints>
         <datapoint>
-            <name>alertsAddedToCache</name>
+            <name>addedToCache</name>
             <originId>9KisVkFPQmKDH815ZSr5BA</originId>
             <dataType>7</dataType>
             <type>2</type>
@@ -530,7 +991,7 @@ def formatGroupIds(alerts){
             <warnadadvsetting></warnadadvsetting>
             <erroradadvsetting></erroradadvsetting>
             <criticaladadvsetting></criticaladadvsetting>
-            <description>How many additional alerts were added to script cache during current poll</description>
+            <description>Number of alerts added to cache in this execution</description>
             <maxvalue></maxvalue>
             <minvalue></minvalue>
             <maxdigits>4</maxdigits>
@@ -559,10 +1020,7 @@ def formatGroupIds(alerts){
             <warnadadvsetting></warnadadvsetting>
             <erroradadvsetting></erroradadvsetting>
             <criticaladadvsetting></criticaladadvsetting>
-            <description>Wether or not a script alert cache was found during polling.
-
-0 = no script cache found
-1 = script cache found</description>
+            <description>Whether alert cache was found (1=cache hit, 0=no cache)</description>
             <maxvalue>1</maxvalue>
             <minvalue>0</minvalue>
             <maxdigits>4</maxdigits>
@@ -575,7 +1033,7 @@ def formatGroupIds(alerts){
             <alertClearTransitionIval>0</alertClearTransitionIval>
         </datapoint>
         <datapoint>
-            <name>alertsCurrentCacheSize</name>
+            <name>currentCacheSize</name>
             <originId>PsoFuMshSzWKK-suTBp-Jg</originId>
             <dataType>7</dataType>
             <type>2</type>
@@ -591,7 +1049,7 @@ def formatGroupIds(alerts){
             <warnadadvsetting></warnadadvsetting>
             <erroradadvsetting></erroradadvsetting>
             <criticaladadvsetting></criticaladadvsetting>
-            <description>how many alerts are currently stored in script cache</description>
+            <description>Current number of alerts stored in cache</description>
             <maxvalue></maxvalue>
             <minvalue></minvalue>
             <maxdigits>4</maxdigits>
@@ -604,7 +1062,7 @@ def formatGroupIds(alerts){
             <alertClearTransitionIval>0</alertClearTransitionIval>
         </datapoint>
         <datapoint>
-            <name>alertsPreviousCacheSize</name>
+            <name>previousCacheSize</name>
             <originId>aWHTXTRxRJaWolg75tEu2A</originId>
             <dataType>7</dataType>
             <type>2</type>
@@ -620,7 +1078,7 @@ def formatGroupIds(alerts){
             <warnadadvsetting></warnadadvsetting>
             <erroradadvsetting></erroradadvsetting>
             <criticaladadvsetting></criticaladadvsetting>
-            <description>How many alerts we stored in script cache when polling started.</description>
+            <description>Number of alerts in cache before this execution</description>
             <maxvalue></maxvalue>
             <minvalue></minvalue>
             <maxdigits>4</maxdigits>
@@ -633,65 +1091,7 @@ def formatGroupIds(alerts){
             <alertClearTransitionIval>0</alertClearTransitionIval>
         </datapoint>
         <datapoint>
-            <name>alertsLookbackPeriod</name>
-            <originId>P-k2pSmXRpeDPJVzj6Cluw</originId>
-            <dataType>7</dataType>
-            <type>2</type>
-            <postprocessormethod>namevalue</postprocessormethod>
-            <postprocessorparam>lookbackPeriod</postprocessorparam>
-            <usevalue>output</usevalue>
-            <alertexpr></alertexpr>
-            <alertmissing>1</alertmissing>
-            <alertsubject></alertsubject>
-            <alertbody></alertbody>
-            <enableanomalyalertsuppression></enableanomalyalertsuppression>
-            <adadvsettingenabled>false</adadvsettingenabled>
-            <warnadadvsetting></warnadadvsetting>
-            <erroradadvsetting></erroradadvsetting>
-            <criticaladadvsetting></criticaladadvsetting>
-            <description>Number of days to look back for resolved alerts. This value is set using custom property alert.lookback.period, if not present defaults to 1.</description>
-            <maxvalue></maxvalue>
-            <minvalue></minvalue>
-            <maxdigits>4</maxdigits>
-            <userparam1></userparam1>
-            <userparam2></userparam2>
-            <userparam3></userparam3>
-            <iscomposite>false</iscomposite>
-            <rpn></rpn>
-            <alertTransitionIval>0</alertTransitionIval>
-            <alertClearTransitionIval>0</alertClearTransitionIval>
-        </datapoint>
-        <datapoint>
-            <name>executionTime</name>
-            <originId>x9ie8_HtRFiDZUUQpOEsBw</originId>
-            <dataType>4</dataType>
-            <type>2</type>
-            <postprocessormethod>none</postprocessormethod>
-            <postprocessorparam></postprocessorparam>
-            <usevalue>responseTime</usevalue>
-            <alertexpr></alertexpr>
-            <alertmissing>1</alertmissing>
-            <alertsubject></alertsubject>
-            <alertbody></alertbody>
-            <enableanomalyalertsuppression></enableanomalyalertsuppression>
-            <adadvsettingenabled>false</adadvsettingenabled>
-            <warnadadvsetting></warnadadvsetting>
-            <erroradadvsetting></erroradadvsetting>
-            <criticaladadvsetting></criticaladadvsetting>
-            <description>Time taken to collect alert details.</description>
-            <maxvalue></maxvalue>
-            <minvalue></minvalue>
-            <maxdigits>4</maxdigits>
-            <userparam1></userparam1>
-            <userparam2></userparam2>
-            <userparam3></userparam3>
-            <iscomposite>false</iscomposite>
-            <rpn></rpn>
-            <alertTransitionIval>0</alertTransitionIval>
-            <alertClearTransitionIval>0</alertClearTransitionIval>
-        </datapoint>
-        <datapoint>
-            <name>alertsRemovedFromCache</name>
+            <name>removedFromCache</name>
             <originId>sVT8KmBkTUuYfE4y1ZvtUw</originId>
             <dataType>7</dataType>
             <type>2</type>
@@ -707,7 +1107,94 @@ def formatGroupIds(alerts){
             <warnadadvsetting></warnadadvsetting>
             <erroradadvsetting></erroradadvsetting>
             <criticaladadvsetting></criticaladadvsetting>
-            <description>Alerts purged from cache that fall outside of defined duration period.</description>
+            <description>Number of alerts removed from cache (outside lookback period)</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>lookbackPeriod</name>
+            <originId>P-k2pSmXRpeDPJVzj6Cluw</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>lookbackPeriod</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Configured lookback period in days for alert collection</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>maxAlertCachePartitions</name>
+            <originId>NEW008</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>maxAlertCachePartitions</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Maximum number of alert cache partitions configured</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>resourcesInCache</name>
+            <originId>9EsCmGw2Sta8yDcjmZOJOA</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>resourcesInCache</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Number of resources/devices cached</description>
             <maxvalue></maxvalue>
             <minvalue></minvalue>
             <maxdigits>4</maxdigits>
@@ -736,71 +1223,7 @@ def formatGroupIds(alerts){
             <warnadadvsetting></warnadadvsetting>
             <erroradadvsetting></erroradadvsetting>
             <criticaladadvsetting></criticaladadvsetting>
-            <description>Wether or not a script resource cache was found during polling.
-
-0 = no script cache found
-1 = script cache found</description>
-            <maxvalue>1</maxvalue>
-            <minvalue>0</minvalue>
-            <maxdigits>4</maxdigits>
-            <userparam1></userparam1>
-            <userparam2></userparam2>
-            <userparam3></userparam3>
-            <iscomposite>false</iscomposite>
-            <rpn></rpn>
-            <alertTransitionIval>0</alertTransitionIval>
-            <alertClearTransitionIval>0</alertClearTransitionIval>
-        </datapoint>
-        <datapoint>
-            <name>resourcesInCache</name>
-            <originId>9EsCmGw2Sta8yDcjmZOJOA</originId>
-            <dataType>7</dataType>
-            <type>2</type>
-            <postprocessormethod>namevalue</postprocessormethod>
-            <postprocessorparam>resourcesInCache</postprocessorparam>
-            <usevalue>output</usevalue>
-            <alertexpr></alertexpr>
-            <alertmissing>1</alertmissing>
-            <alertsubject></alertsubject>
-            <alertbody></alertbody>
-            <enableanomalyalertsuppression></enableanomalyalertsuppression>
-            <adadvsettingenabled>false</adadvsettingenabled>
-            <warnadadvsetting></warnadadvsetting>
-            <erroradadvsetting></erroradadvsetting>
-            <criticaladadvsetting></criticaladadvsetting>
-            <description>Number of resources in script cache</description>
-            <maxvalue></maxvalue>
-            <minvalue></minvalue>
-            <maxdigits>4</maxdigits>
-            <userparam1></userparam1>
-            <userparam2></userparam2>
-            <userparam3></userparam3>
-            <iscomposite>false</iscomposite>
-            <rpn></rpn>
-            <alertTransitionIval>0</alertTransitionIval>
-            <alertClearTransitionIval>0</alertClearTransitionIval>
-        </datapoint>
-        <datapoint>
-            <name>deviceGroupsCacheHit</name>
-            <originId>5QlidqYqTTCNlEO3yg4Pmw</originId>
-            <dataType>7</dataType>
-            <type>2</type>
-            <postprocessormethod>namevalue</postprocessormethod>
-            <postprocessorparam>deviceGroupsCacheHit</postprocessorparam>
-            <usevalue>output</usevalue>
-            <alertexpr></alertexpr>
-            <alertmissing>1</alertmissing>
-            <alertsubject></alertsubject>
-            <alertbody></alertbody>
-            <enableanomalyalertsuppression></enableanomalyalertsuppression>
-            <adadvsettingenabled>false</adadvsettingenabled>
-            <warnadadvsetting></warnadadvsetting>
-            <erroradadvsetting></erroradadvsetting>
-            <criticaladadvsetting></criticaladadvsetting>
-            <description>Wether or not a script deviceGroup cache was found during polling.
-
-0 = no script cache found
-1 = script cache found</description>
+            <description>Whether resource cache was found (1=cache hit, 0=no cache)</description>
             <maxvalue>1</maxvalue>
             <minvalue>0</minvalue>
             <maxdigits>4</maxdigits>
@@ -829,9 +1252,183 @@ def formatGroupIds(alerts){
             <warnadadvsetting></warnadadvsetting>
             <erroradadvsetting></erroradadvsetting>
             <criticaladadvsetting></criticaladadvsetting>
-            <description>Number of device groups in script cache</description>
+            <description>Number of device groups cached</description>
             <maxvalue></maxvalue>
             <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>deviceGroupsCacheHit</name>
+            <originId>5QlidqYqTTCNlEO3yg4Pmw</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>deviceGroupsCacheHit</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Whether device group cache was found (1=cache hit, 0=no cache)</description>
+            <maxvalue>1</maxvalue>
+            <minvalue>0</minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>totalExecutionTime</name>
+            <originId>NEW001</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>totalExecutionTime</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Total script execution time in milliseconds</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>maxAlertQueryCount</name>
+            <originId>NEW013</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>maxAlertQueryCount</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Maximum alert query count metric</description>
+            <maxvalue></maxvalue>
+            <minvalue></minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>deviceGroupsSuccess</name>
+            <originId>NEW009</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>deviceGroupsSuccess</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Whether device groups collection succeeded (1=success, 0=failure)</description>
+            <maxvalue>1</maxvalue>
+            <minvalue>0</minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>devicesSuccess</name>
+            <originId>NEW010</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>devicesSuccess</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Whether devices collection succeeded (1=success, 0=failure)</description>
+            <maxvalue>1</maxvalue>
+            <minvalue>0</minvalue>
+            <maxdigits>4</maxdigits>
+            <userparam1></userparam1>
+            <userparam2></userparam2>
+            <userparam3></userparam3>
+            <iscomposite>false</iscomposite>
+            <rpn></rpn>
+            <alertTransitionIval>0</alertTransitionIval>
+            <alertClearTransitionIval>0</alertClearTransitionIval>
+        </datapoint>
+        <datapoint>
+            <name>alertsSuccess</name>
+            <originId>NEW011</originId>
+            <dataType>7</dataType>
+            <type>2</type>
+            <postprocessormethod>namevalue</postprocessormethod>
+            <postprocessorparam>alertsSuccess</postprocessorparam>
+            <usevalue>output</usevalue>
+            <alertexpr></alertexpr>
+            <alertmissing>1</alertmissing>
+            <alertsubject></alertsubject>
+            <alertbody></alertbody>
+            <enableanomalyalertsuppression></enableanomalyalertsuppression>
+            <adadvsettingenabled>false</adadvsettingenabled>
+            <warnadadvsetting></warnadadvsetting>
+            <erroradadvsetting></erroradadvsetting>
+            <criticaladadvsetting></criticaladadvsetting>
+            <description>Whether alerts collection succeeded (1=success, 0=failure)</description>
+            <maxvalue>1</maxvalue>
+            <minvalue>0</minvalue>
             <maxdigits>4</maxdigits>
             <userparam1></userparam1>
             <userparam2></userparam2>
@@ -856,25 +1453,25 @@ def formatGroupIds(alerts){
             <graphdatapoints>
         <graphdatapoint>
             <name>addedToCache</name>
-            <datapointname>alertsAddedToCache</datapointname>
+            <datapointname>addedToCache</datapointname>
             <originId></originId>
             <cf>1</cf>
         </graphdatapoint>
         <graphdatapoint>
             <name>currentCacheSize</name>
-            <datapointname>alertsCurrentCacheSize</datapointname>
+            <datapointname>currentCacheSize</datapointname>
             <originId></originId>
             <cf>1</cf>
         </graphdatapoint>
         <graphdatapoint>
             <name>previousCacheSize</name>
-            <datapointname>alertsPreviousCacheSize</datapointname>
+            <datapointname>previousCacheSize</datapointname>
             <originId></originId>
             <cf>1</cf>
         </graphdatapoint>
         <graphdatapoint>
             <name>removedFromCache</name>
-            <datapointname>alertsRemovedFromCache</datapointname>
+            <datapointname>removedFromCache</datapointname>
             <originId></originId>
             <cf>1</cf>
         </graphdatapoint>
@@ -924,7 +1521,7 @@ def formatGroupIds(alerts){
             <base1024>false</base1024>
             <graphdatapoints>
         <graphdatapoint>
-            <name>alertsCacheHit</name>
+            <name>alertCacheHit</name>
             <datapointname>alertCacheHit</datapointname>
             <originId></originId>
             <cf>1</cf>
@@ -948,9 +1545,9 @@ def formatGroupIds(alerts){
             </graphdata>
             <graphdata>
                 <type>1</type>
-                <legend>alertsCacheHit</legend>
+                <legend>alertCacheHit</legend>
                 <color>aqua</color>
-                <datapointname>alertsCacheHit</datapointname>
+                <datapointname>alertCacheHit</datapointname>
                 <isvirtualdatapoint>false</isvirtualdatapoint>
             </graphdata>
             </graphdatas>
@@ -1027,8 +1624,8 @@ def formatGroupIds(alerts){
             <base1024>false</base1024>
             <graphdatapoints>
         <graphdatapoint>
-            <name>executionTime</name>
-            <datapointname>executionTime</datapointname>
+            <name>totalExecutionTime</name>
+            <datapointname>totalExecutionTime</datapointname>
             <originId></originId>
             <cf>1</cf>
         </graphdatapoint>
@@ -1038,9 +1635,66 @@ def formatGroupIds(alerts){
             <graphdatas>
             <graphdata>
                 <type>1</type>
-                <legend>executionTime</legend>
+                <legend>totalExecutionTime</legend>
                 <color>silver</color>
-                <datapointname>executionTime</datapointname>
+                <datapointname>totalExecutionTime</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            </graphdatas>
+        </graph>
+        <graph>
+            <name>Component Status</name>
+            <title>Component Status</title>
+            <originId>NEW_GRAPH_001</originId>
+            <verticallabel>1=Success, 0=Failure</verticallabel>
+            <rigid>false</rigid>
+            <maxvalue>1.5</maxvalue>
+            <minvalue>-0.5</minvalue>
+            <displayprio>1</displayprio>
+            <timescale>1day</timescale>
+            <base1024>false</base1024>
+            <graphdatapoints>
+        <graphdatapoint>
+            <name>deviceGroupsSuccess</name>
+            <datapointname>deviceGroupsSuccess</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+        <graphdatapoint>
+            <name>devicesSuccess</name>
+            <datapointname>devicesSuccess</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+        <graphdatapoint>
+            <name>alertsSuccess</name>
+            <datapointname>alertsSuccess</datapointname>
+            <originId></originId>
+            <cf>1</cf>
+        </graphdatapoint>
+            </graphdatapoints>
+            <graphvirtualdatapoints>
+            </graphvirtualdatapoints>
+            <graphdatas>
+            <graphdata>
+                <type>1</type>
+                <legend>deviceGroupsSuccess</legend>
+                <color>green</color>
+                <datapointname>deviceGroupsSuccess</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            <graphdata>
+                <type>1</type>
+                <legend>devicesSuccess</legend>
+                <color>blue</color>
+                <datapointname>devicesSuccess</datapointname>
+                <isvirtualdatapoint>false</isvirtualdatapoint>
+            </graphdata>
+            <graphdata>
+                <type>1</type>
+                <legend>alertsSuccess</legend>
+                <color>orange</color>
+                <datapointname>alertsSuccess</datapointname>
                 <isvirtualdatapoint>false</isvirtualdatapoint>
             </graphdata>
             </graphdatas>

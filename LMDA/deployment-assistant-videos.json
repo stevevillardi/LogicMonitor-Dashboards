@@ -1,5 +1,16 @@
 [
     {
+        "category": "Deployment Assistant",
+        "videos": [
+            {
+                "title": "LM Deployment Assistant (Walkthrough)",
+                "description": "Learn how to utilize the LM Deployment Assistant.",
+                "videoId": "Nw3xseJTXKU",
+                "duration": "17:45"
+            }
+        ]
+    },
+    {
         "category": "Cloud Monitoring",
         "videos": [
             {

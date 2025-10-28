@@ -86,15 +86,41 @@ return 0
         <attribute>
             <name>scriptgroovy</name>
             <value>/*******************************************************************************
- * © 2007-2023 - LogicMonitor, Inc. All rights reserved.
+ * © 2007-2025 - LogicMonitor, Inc. All rights reserved.
  ******************************************************************************/
 import groovy.json.*
+import java.util.Arrays
 
-def durationPeriod = hostProps.get(&#34;alert.analysis.period&#34;) ?: hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;7&#34; //Default to 7 day(s)
+def durationPeriod = hostProps.get(&#34;alert.analysis.period&#34;) ?: hostProps.get(&#34;alert.duration.period&#34;) ?: &#34;30&#34; //Default to 30 day(s)
 def durationMinimum = hostProps.get(&#34;alert.analysis.minimumTimeInSeconds&#34;) ?: hostProps.get(&#34;alert.duration.minimumTimeInSeconds&#34;) ?: &#34;0&#34; //Default to include alerts of any duration)
-def maxAlertCacheSize = 10 //Number of scriptCache keys to utilize since max cache size is limited to around 20,000 alerts
+def maxAlertCacheSize = = hostProps.get(&quot;alert.analysis.maxAlertCachePartitions&quot;)?.toInteger() ?: 10 //Number of scriptCache keys to utilize since max cache size is limited to around 20,000 alerts
 
 def scriptCache
+
+// Performance and timeout management
+def SCRIPT_START_TIME = System.currentTimeMillis()
+def MAX_EXECUTION_TIME = 110000 // 110 seconds (10s buffer)
+def executionMetrics = [:]
+
+// Utility functions for performance and timeout management
+def trackPerformance = { String operation, Closure code -&#62;
+    def startTime = System.currentTimeMillis()
+    try {
+        def result = code()
+        def duration = System.currentTimeMillis() - startTime
+        executionMetrics[operation] = duration
+        return result
+    } catch (Exception e) {
+        println &#34;${operation}Error=1&#34;
+        throw e
+    }
+}
+
+def checkTimeout = { String operation -&#62;
+    if ((System.currentTimeMillis() - SCRIPT_START_TIME) &#62;= MAX_EXECUTION_TIME) {
+        throw new Exception(&#34;Script timeout during: ${operation}&#34;)
+    }
+}
 
 /*Calculate start and end date for alert query*/
 int timePeriod = 24 * durationPeriod.toInteger() //hours for rolling average
@@ -106,81 +132,112 @@ def alerts
 def groups
 
 try {
+    checkTimeout(&#34;Initial cache setup&#34;)
+
     scriptCache = this.class.classLoader.loadClass(&#34;com.santaba.agent.util.script.ScriptCache&#34;).getCache();
-    //String alertsCache = scriptCache.get(&#34;DeviceAlertStats-AlertsCache&#34;);
-    String alertsCache = getAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache)
+
+    // Load alerts from cache with performance tracking
+    String alertsCache = trackPerformance(&#34;alertCacheRetrieval&#34;) {
+        getAlertCache(maxAlertCacheSize,&#34;DeviceAlertStats-AlertsCache&#34;,scriptCache)
+    }
     if(alertsCache){
-        /*Grab alerts*/
-        alerts = new JsonSlurper().parseText(alertsCache)
+        alerts = trackPerformance(&#34;alertsParsing&#34;) {
+            new JsonSlurper().parseText(alertsCache)
+        }
     }
 
-    String groupCache = scriptCache.get(&#34;DeviceAlertStats-deviceGroupCache&#34;);
-    if(groupCache){
-        /*Grab device groups*/
-        groups = new JsonSlurper().parseText(groupCache)
+    // Load groups from cache with performance tracking
+    String groupCache = trackPerformance(&#34;groupCacheRetrieval&#34;) {
+        scriptCache.get(&#34;DeviceAlertStats-deviceGroupCache&#34;)
     }
-}	
+    if(groupCache){
+        groups = trackPerformance(&#34;groupsParsing&#34;) {
+            new JsonSlurper().parseText(groupCache)
+        }
+    }
+}
 catch (Exception ex) {
-	println ex
+    def executionTime = System.currentTimeMillis() - SCRIPT_START_TIME
+    println &#34;ScriptError=1&#34;
+    println &#34;ErrorMessage=${ex.getMessage()}&#34;
+    println &#34;ExecutionTimeAtError=${executionTime}&#34;
+    println &#34;TimeoutExceeded=${executionTime &#62;= MAX_EXECUTION_TIME ? 1 : 0}&#34;
+
+    // Output any performance metrics we collected before the error
+    executionMetrics.each { operation, duration -&#62;
+        println &#34;${operation}=${duration}&#34;
+    }
+
+    println ex
     return -1
 }
 
 if(alerts &#38;&#38; groups){
-    groups.each { group -&#62; 
-        def matching_alerts = alerts.findAll{ if(it.groupIds){it.groupIds.split(&#39;,&#39;).contains(group.id.toString())}else{false}}
-        if(matching_alerts){
-            matching_alerts.each { alert -&#62;
-                double duration = alert.endEpoch - alert.startEpoch
-                alert.put(&#34;Duration&#34;,duration)
+    checkTimeout(&#34;Alert processing&#34;)
 
-                switch(alert.severity.toInteger()){
-                    case 2:
-                        //warning
-                        alert.put(&#34;warnDuration&#34;,duration)
-                        break;
-                    case 3:
-                        //error
-                        alert.put(&#34;errorDuration&#34;,duration)
-                        break;
-                    case 4:
-                        //critical
-                        alert.put(&#34;criticalDuration&#34;,duration)
-                        break;
+    // Pre-index alerts by group IDs for efficient lookup instead of O(n²) findAll
+    def alertsByGroup = trackPerformance(&#34;alertGroupIndexing&#34;) {
+        def groupIndex = [:]
+        alerts.each { alert -&#62;
+            if(alert.groupIds) {
+                alert.groupIds.split(&#39;,&#39;).each { groupId -&#62;
+                    def trimmedGroupId = groupId.trim()
+                    if(!groupIndex[trimmedGroupId]) {
+                        groupIndex[trimmedGroupId] = []
+                    }
+                    groupIndex[trimmedGroupId] &#60;&#60; alert
                 }
             }
+        }
+        return groupIndex
+    }
 
-            //Remove alerts not meeting minimum duration
-            matching_alerts.removeAll { it.Duration &#60;= durationMinimum.toInteger()}
+    def processedGroups = 0
+    groups.each { group -&#62;
+        checkTimeout(&#34;Processing group ${group.id}&#34;)
 
-            def warnAlerts = matching_alerts.findAll { it.severity.toInteger() == 2}
-            def errorAlerts = matching_alerts.findAll { it.severity.toInteger() == 3}
-            def criticalAlerts = matching_alerts.findAll { it.severity.toInteger() == 4}
+        def groupAlerts = alertsByGroup[group.id.toString()]
+        if(groupAlerts){
+            // Process alerts for this group with single-pass optimization
+            def processedAlerts = trackPerformance(&#34;groupAlertProcessing&#34;) {
+                processGroupAlertsOptimized(groupAlerts, durationMinimum.toInteger())
+            }
 
-            calcDuration(matching_alerts,&#34;&#34;, group.id)
-            calcDuration(warnAlerts,&#34;warn&#34;, group.id)
-            calcDuration(errorAlerts,&#34;error&#34;, group.id)
-            calcDuration(criticalAlerts,&#34;critical&#34;, group.id)
+            calcDurationOptimized(processedAlerts.total,&#34;&#34;, group.id)
+            calcDurationOptimized(processedAlerts.warn,&#34;warn&#34;, group.id)
+            calcDurationOptimized(processedAlerts.error,&#34;error&#34;, group.id)
+            calcDurationOptimized(processedAlerts.critical,&#34;critical&#34;, group.id)
         }
         else{
-            println &#34;${group.id}.longestAlertDuration=0&#34;
-			println &#34;${group.id}.warnLongestAlertDuration=0&#34;
-			println &#34;${group.id}.errorLongestAlertDuration=0&#34;
-			println &#34;${group.id}.criticalLongestAlertDuration=0&#34;
-            println &#34;${group.id}.alertSize=0&#34;
-            println &#34;${group.id}.averageDuration=0&#34;
-            println &#34;${group.id}.warnAverageDuration=0&#34;
-            println &#34;${group.id}.errorAverageDuration=0&#34;
-            println &#34;${group.id}.criticalAverageDuration=0&#34;
-            println &#34;${group.id}.warnAlertSize=0&#34;
-            println &#34;${group.id}.errorAlertSize=0&#34;
-            println &#34;${group.id}.criticalAlertSize=0&#34;
-            println &#34;${group.id}.averageDuration95th=0&#34;
-            println &#34;${group.id}.warnAverageDuration95th=0&#34;
-            println &#34;${group.id}.errorAverageDuration95th=0&#34;
-            println &#34;${group.id}.criticalAverageDuration95th=0&#34;
+            // Output zero values for groups with no alerts
+            outputZeroMetrics(group.id)
         }
         println &#34;${group.id}.durationPeriod=${durationPeriod}&#34;
+
+        processedGroups++
+
+        // Periodic timeout check for large group lists
+        if(processedGroups % 50 == 0) {
+            checkTimeout(&#34;Processed ${processedGroups} groups&#34;)
+        }
     }
+
+    // Performance and execution metrics
+    def totalExecutionTime = System.currentTimeMillis() - SCRIPT_START_TIME
+    println &#34;totalExecutionTime=${totalExecutionTime}&#34;
+    println &#34;processedGroups=${processedGroups}&#34;
+    println &#34;alertsProcessed=${alerts.size()}&#34;
+
+    // Output individual operation timings
+    executionMetrics.each { operation, duration -&#62;
+        println &#34;${operation}=${duration}&#34;
+    }
+
+    // Memory cleanup
+    alerts?.clear()
+    groups?.clear()
+    alertsByGroup?.clear()
+    executionMetrics?.clear()
 }
 
 return 0
@@ -202,11 +259,110 @@ def getAlertCache(cacheLimit,cacheName,cacheObject){
     }
     // println &#34;Total cache size accross ${i} index(es), alert size ${alerts.size()}&#34;
     if(alerts){
-        return new JsonBuilder( alerts ).toPrettyString()
+        return new JsonBuilder( alerts ).toString() // Use toString() for better performance
     }
     else{
         // println &#34;No cache found&#34;
         return null
+    }
+}
+
+// Optimized single-pass alert processing function for groups
+def processGroupAlertsOptimized(groupAlerts, durationMinimum) {
+    def stats = [
+        total: [count: 0, durations: []],
+        warn: [count: 0, durations: []],
+        error: [count: 0, durations: []],
+        critical: [count: 0, durations: []]
+    ]
+
+    groupAlerts.each { alert -&#62;
+        double duration = alert.endEpoch - alert.startEpoch
+
+        // Early termination for short alerts
+        if (duration &#60;= durationMinimum) return
+
+        // Single calculation, multiple uses
+        def severityKey = getSeverityKey(alert.severity.toInteger())
+
+        stats.total.count++
+        stats.total.durations &#60;&#60; duration
+
+        if (severityKey) {
+            stats[severityKey].count++
+            stats[severityKey].durations &#60;&#60; duration
+        }
+    }
+
+    return stats
+}
+
+// Helper function for severity mapping
+private getSeverityKey(severity) {
+    switch(severity) {
+        case 2: return &#39;warn&#39;
+        case 3: return &#39;error&#39;
+        case 4: return &#39;critical&#39;
+        default: return null
+    }
+}
+
+// Optimized percentile calculation using Arrays.sort for better performance
+def getPercentileOptimized(collection, percentile) {
+    if (!collection || collection.empty) return [percentileValue: 0.0, longestDuration: 0.0]
+
+    // Use Arrays.sort for better performance
+    def values = collection as double[]
+    Arrays.sort(values)
+
+    int index = Math.min((int)(values.length * percentile), values.length - 1)
+    double longestDuration = (values[values.length - 1] / 60).round(2)
+
+    // Calculate percentile value without modifying array
+    double percentileValue = 0.0
+    if (index &#62; 0) {
+        def sum = 0.0
+        for (int i = 0; i &#60;= index; i++) {
+            sum += values[i]
+        }
+        percentileValue = ((sum / (index + 1)) / 60).round(2)
+    }
+
+    return [percentileValue: percentileValue, longestDuration: longestDuration]
+}
+
+// Optimized calculation function with better performance
+def calcDurationOptimized(alertStats, dpPrefix, groupId) {
+    if(alertStats.durations &#38;&#38; !alertStats.durations.empty){
+        println &#34;${groupId}.${dpPrefix}AlertSize=${alertStats.count}&#34;
+
+        double duration = ((alertStats.durations.sum() / alertStats.durations.size()) / 60).round(2)
+        println &#34;${groupId}.${dpPrefix}AverageDuration=${duration}&#34;
+
+        def percentileResult = getPercentileOptimized(alertStats.durations, 0.95)
+        println &#34;${groupId}.${dpPrefix}AverageDuration95th=${percentileResult.percentileValue}&#34;
+        println &#34;${groupId}.${dpPrefix}longestAlertDuration=${percentileResult.longestDuration}&#34;
+    }
+    else{
+        outputZeroMetricsForPrefix(groupId, dpPrefix)
+    }
+}
+
+// Output zero metrics for a specific prefix
+def outputZeroMetricsForPrefix(groupId, dpPrefix) {
+    println &#34;${groupId}.${dpPrefix}longestAlertDuration=0&#34;
+    println &#34;${groupId}.${dpPrefix}AlertSize=0&#34;
+    println &#34;${groupId}.${dpPrefix}AverageDuration=0&#34;
+    println &#34;${groupId}.${dpPrefix}AverageDuration95th=0&#34;
+}
+
+// Consolidated zero metrics output function for all prefixes
+def outputZeroMetrics(groupId) {
+    [&#34;&#34;, &#34;warn&#34;, &#34;error&#34;, &#34;critical&#34;].each { prefix -&#62;
+        println &#34;${groupId}.${prefix}longestAlertDuration=0&#34;
+        println &#34;${groupId}.${prefix}AlertSize=0&#34;
+        println &#34;${groupId}.${prefix}AverageDuration=0&#34;
+        println &#34;${groupId}.${prefix}AverageDuration95th=0&#34;
     }
 }
 
@@ -229,18 +385,11 @@ def calcDuration(collection, dpPrefix, groupId) {
     }
 }
 
+// Legacy function kept for compatibility (now optimized)
 Double getPercentile(collection, percentile, dpPrefix, groupId) {
-    def sortedCollection = collection.sort()
-
-    double longestAlertDuration = (sortedCollection[-1] / 60).round(2)
-    println &#34;${groupId}.${dpPrefix}longestAlertDuration=${longestAlertDuration}&#34;
-
-    int percentileIndex = Math.round(sortedCollection.size() * percentile)
-    sortedCollection.subList(percentileIndex,sortedCollection.size()).clear()
-
-    double result =  ((sortedCollection.sum() / Math.ceil(sortedCollection.size())) / 60).round(2)
-
-    return result
+    def result = getPercentileOptimized(collection, percentile)
+    println &#34;${groupId}.${dpPrefix}longestAlertDuration=${result.longestDuration}&#34;
+    return result.percentileValue
 }</value>
             <comment></comment>
         </attribute>

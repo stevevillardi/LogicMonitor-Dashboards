@@ -20,14 +20,15 @@ The goal with this alert analysis dashboard is to provide a working example of h
 | lmaccess.id                         | Yes          | N/A                 | API Access ID (Should already be set on portal metrics resource if deployed)                                                                           |
 | lmaccess.key                        | Yes          | N/A                 | API Access Key (Should already be set on portal metrics resource if deployed)                                                                          |
 | lmaccount                           | No           | AGENT_COMPANY value | LM portal subdomain                                                                                                                                    |
-| alert.analysis.period               | No           | 7                   | Number of days to use for duration calculation                                                                                                         |
+| alert.analysis.period               | No           | 30                   | Number of days to use for duration calculation                                                                                                         |
 | alert.analysis.excludeUnACKedAlerts | No           | false               | Exclude un-acknowledged alerts from alert duration calculation                                                                                         |
 | alert.analysis.excludeSDTedAlerts   | No           | false               | Exclude SDTed alerts from alert duration calculation                                                                                                   |
 | alert.analysis.datasourceList       | No           | (All DSes)          | Comma-seperated list of datasource names to restrict alert analysis to. (Ex. HostStatus,SNMP_Network_Interfaces)                                       |
 | alert.analysis.minimumTimeInSeconds | No           | 0                   | Minimum thresholds in seconds a alert has to be active for it to be included in analysis.                                                              |
 | alert.analysis.includeGroupIds      | No           | null                | Comma-seperated list additional device group IDs to include for discovery for LogicMonitor_DeviceGroup_Alert_Statistics module.                        |
+| alert.analysis.maxAlertCachePartitions      | No           | 10                | The max number of alert partitions to store alert data in with scriptCache. Default value is 10 which is aroung 150k alerts, making this larger will allow more alerts to be processed but at the cost of collector memory, adjust with caution.
 
-**Note:** (alert.duration.* can also be used to preserve backwards compatibility)
+**Note:** (alert.duration.* props are depreacted and will be removed in future versions.)
 
 **Future**  **Improvements:**
 Currently this is the first iteration of the alert duration package and their has been many ideas floating around on different tuning and filter options we could provide. Below is a list of some future enhancements we can look to add:
