@@ -17,7 +17,7 @@
       "value": "*"
     }
   ],
-  "name": "Alert Analysis Overview v2",
+  "name": "Alert Analysis Overview",
   "description": "",
   "overwriteGroupFields": false,
   "widgetsConfigVersion": 2,
