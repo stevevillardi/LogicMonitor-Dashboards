@@ -8,7 +8,7 @@ def durationPeriod = hostProps.get("alert.analysis.period") ?: hostProps.get("al
 def durationMinimum = hostProps.get("alert.analysis.minimumTimeInSeconds") ?: hostProps.get("alert.duration.minimumTimeInSeconds") ?: "0" //Default to include alerts of any duration)
 def deviceId = hostProps.get("system.deviceId")
 def scriptCache
-def maxAlertCacheSize = 100 //Number of scriptCache keys to utilize since max cache size is limited to around 20,000 alerts
+def maxAlertCacheSize = hostProps.get("alert.analysis.maxAlertCachePartitions")?.toInteger() ?: 10
 
 // Performance and timeout management
 def SCRIPT_START_TIME = System.currentTimeMillis()

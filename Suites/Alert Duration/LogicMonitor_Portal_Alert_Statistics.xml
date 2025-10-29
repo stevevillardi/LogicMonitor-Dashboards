@@ -64,7 +64,7 @@ import java.util.Arrays
 def durationPeriod = hostProps.get(&quot;alert.analysis.period&quot;) ?: hostProps.get(&quot;alert.duration.period&quot;) ?: &quot;30&quot; //Default to 30 day(s)
 def durationMinimum = hostProps.get(&quot;alert.analysis.minimumTimeInSeconds&quot;) ?: hostProps.get(&quot;alert.duration.minimumTimeInSeconds&quot;) ?: &quot;0&quot; //Default to include alerts of any duration)
 
-def maxAlertCacheSize = = hostProps.get(&quot;alert.analysis.maxAlertCachePartitions&quot;)?.toInteger() ?: 10 //Number of scriptCache keys to utilize since max cache size is limited to around 20,000 alerts
+def maxAlertCacheSize = hostProps.get(&quot;alert.analysis.maxAlertCachePartitions&quot;)?.toInteger() ?: 10 //Number of scriptCache keys to utilize since max cache size is limited to around 20,000 alerts
 
 // Performance and timeout management
 def SCRIPT_START_TIME = System.currentTimeMillis()
