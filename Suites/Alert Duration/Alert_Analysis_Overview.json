@@ -1,5 +1,8 @@
 {
-  "santabaRelease": 197,
+  "santabaRelease": 228,
+  "defaultDashboardFilters": {
+    "defaultDashboardFilterDetails": []
+  },
   "widgetTokens": [
     {
       "name": "defaultInstanceName",
@@ -14,7 +17,7 @@
       "value": "*"
     }
   ],
-  "name": "Alert Analysis Overview",
+  "name": "Alert Analysis Overview v2",
   "description": "",
   "overwriteGroupFields": false,
   "widgetsConfigVersion": 2,
@@ -29,31 +32,40 @@
       },
       "config": {
         "bigNumberInfo": {
-          "virtualDataPoints": [{
-            "rpn": "if(un(averageDuration),0,averageDuration)",
-            "name": "CleanAvergeDuration"
-          }],
+          "virtualDataPoints": [
+            {
+              "rpn": "if(un(averageDuration),0,averageDuration)",
+              "name": "CleanAvergeDuration"
+            }
+          ],
           "counters": [],
-          "dataPoints": [{
-            "dataPointName": "averageDuration",
-            "instanceName": "*",
-            "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
-            "name": "averageDuration",
-            "aggregateFunction": "SUM",
-            "deviceGroupFullPath": "*",
-            "deviceDisplayName": "*"
-          }],
-          "bigNumberItems": [{
-            "dataPointName": "CleanAvergeDuration",
-            "useCommaSeparators": false,
-            "bottomLabel": "minutes",
-            "rounding": 2,
-            "position": 1,
-            "rightLabel": "",
-            "colorThresholds": null
-          }]
+          "dataPoints": [
+            {
+              "dataPointName": "averageDuration",
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
+              "name": "averageDuration",
+              "aggregateFunction": "SUM",
+              "deviceGroupFullPath": "*",
+              "deviceDisplayName": "*"
+            }
+          ],
+          "bigNumberItems": [
+            {
+              "dataPointName": "CleanAvergeDuration",
+              "useCommaSeparators": false,
+              "bottomLabel": "minutes",
+              "rounding": 2,
+              "position": 1,
+              "rightLabel": "",
+              "colorThresholds": null,
+              "actions": []
+            }
+          ]
         },
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "Average Overall Duration",
         "description": "",
         "theme": "newSolidDarkBlue",
@@ -72,31 +84,40 @@
       },
       "config": {
         "bigNumberInfo": {
-          "virtualDataPoints": [{
-            "rpn": "if(un(duration),0,duration)",
-            "name": "Cleanduration"
-          }],
+          "virtualDataPoints": [
+            {
+              "rpn": "if(un(duration),0,duration)",
+              "name": "Cleanduration"
+            }
+          ],
           "counters": [],
-          "dataPoints": [{
-            "dataPointName": "criticalLongestAlertDuration",
-            "instanceName": "*",
-            "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
-            "name": "duration",
-            "aggregateFunction": "MAX",
-            "deviceGroupFullPath": "*",
-            "deviceDisplayName": "*"
-          }],
-          "bigNumberItems": [{
-            "dataPointName": "Cleanduration",
-            "useCommaSeparators": false,
-            "bottomLabel": "minutes",
-            "rounding": 2,
-            "position": 1,
-            "rightLabel": "",
-            "colorThresholds": null
-          }]
+          "dataPoints": [
+            {
+              "dataPointName": "criticalLongestAlertDuration",
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
+              "name": "duration",
+              "aggregateFunction": "MAX",
+              "deviceGroupFullPath": "*",
+              "deviceDisplayName": "*"
+            }
+          ],
+          "bigNumberItems": [
+            {
+              "dataPointName": "Cleanduration",
+              "useCommaSeparators": false,
+              "bottomLabel": "minutes",
+              "rounding": 2,
+              "position": 1,
+              "rightLabel": "",
+              "colorThresholds": null,
+              "actions": []
+            }
+          ]
         },
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "Critical: Longest Duration",
         "description": "",
         "theme": "newSolidDarkBlue",
@@ -217,6 +238,7 @@
             "roundingDecimal": 2
           }
         ],
+        "supportCustomProperty": false,
         "description": "",
         "forecast": {
           "severity": "warn",
@@ -225,13 +247,16 @@
           "algorithm": "Linear"
         },
         "type": "dynamicTable",
-        "rows": [{
-          "instanceName": "*",
-          "label": "##INSTANCE##",
-          "deviceDisplayName": "##defaultResourceName##",
-          "groupFullPath": "##defaultResourceGroup##"
-        }],
+        "rows": [
+          {
+            "instanceName": "*",
+            "label": "##INSTANCE##",
+            "deviceDisplayName": "##defaultResourceName##",
+            "groupFullPath": "##defaultResourceGroup##"
+          }
+        ],
         "version": 2,
+        "isSupportCustomProperty": false,
         "topX": -1,
         "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
         "sortOrder": "descending",
@@ -316,6 +341,7 @@
             "roundingDecimal": 2
           }
         ],
+        "supportCustomProperty": false,
         "description": "",
         "forecast": {
           "severity": "warn",
@@ -324,13 +350,16 @@
           "algorithm": "Linear"
         },
         "type": "dynamicTable",
-        "rows": [{
-          "instanceName": "*",
-          "label": "##INSTANCE##",
-          "deviceDisplayName": "##defaultResourceName##",
-          "groupFullPath": "##defaultResourceGroup##"
-        }],
+        "rows": [
+          {
+            "instanceName": "*",
+            "label": "##INSTANCE##",
+            "deviceDisplayName": "##defaultResourceName##",
+            "groupFullPath": "##defaultResourceGroup##"
+          }
+        ],
         "version": 2,
+        "isSupportCustomProperty": false,
         "topX": -1,
         "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
         "sortOrder": "descending",
@@ -469,6 +498,7 @@
             "roundingDecimal": 2
           }
         ],
+        "supportCustomProperty": false,
         "description": "",
         "forecast": {
           "severity": "warn",
@@ -477,13 +507,16 @@
           "algorithm": "Linear"
         },
         "type": "dynamicTable",
-        "rows": [{
-          "instanceName": "*",
-          "label": "##INSTANCE##",
-          "deviceDisplayName": "##defaultResourceName##",
-          "groupFullPath": "##defaultResourceGroup##"
-        }],
+        "rows": [
+          {
+            "instanceName": "*",
+            "label": "##INSTANCE##",
+            "deviceDisplayName": "##defaultResourceName##",
+            "groupFullPath": "##defaultResourceGroup##"
+          }
+        ],
         "version": 2,
+        "isSupportCustomProperty": false,
         "topX": -1,
         "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
         "sortOrder": "descending",
@@ -502,31 +535,40 @@
       },
       "config": {
         "bigNumberInfo": {
-          "virtualDataPoints": [{
-            "rpn": "if(un(duration),0,duration)",
-            "name": "Cleanduration"
-          }],
+          "virtualDataPoints": [
+            {
+              "rpn": "if(un(duration),0,duration)",
+              "name": "Cleanduration"
+            }
+          ],
           "counters": [],
-          "dataPoints": [{
-            "dataPointName": "errorLongestAlertDuration",
-            "instanceName": "*",
-            "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
-            "name": "duration",
-            "aggregateFunction": "MAX",
-            "deviceGroupFullPath": "*",
-            "deviceDisplayName": "*"
-          }],
-          "bigNumberItems": [{
-            "dataPointName": "Cleanduration",
-            "useCommaSeparators": false,
-            "bottomLabel": "minutes",
-            "rounding": 2,
-            "position": 1,
-            "rightLabel": "",
-            "colorThresholds": null
-          }]
+          "dataPoints": [
+            {
+              "dataPointName": "errorLongestAlertDuration",
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
+              "name": "duration",
+              "aggregateFunction": "MAX",
+              "deviceGroupFullPath": "*",
+              "deviceDisplayName": "*"
+            }
+          ],
+          "bigNumberItems": [
+            {
+              "dataPointName": "Cleanduration",
+              "useCommaSeparators": false,
+              "bottomLabel": "minutes",
+              "rounding": 2,
+              "position": 1,
+              "rightLabel": "",
+              "colorThresholds": null,
+              "actions": []
+            }
+          ]
         },
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "Error: Longest Duration",
         "description": "",
         "theme": "newSolidDarkBlue",
@@ -545,31 +587,40 @@
       },
       "config": {
         "bigNumberInfo": {
-          "virtualDataPoints": [{
-            "rpn": "if(un(averageDuration),0,averageDuration)",
-            "name": "CleanAvergeDuration"
-          }],
+          "virtualDataPoints": [
+            {
+              "rpn": "if(un(averageDuration),0,averageDuration)",
+              "name": "CleanAvergeDuration"
+            }
+          ],
           "counters": [],
-          "dataPoints": [{
-            "dataPointName": "criticalAverageDuration95th",
-            "instanceName": "*",
-            "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
-            "name": "averageDuration",
-            "aggregateFunction": "SUM",
-            "deviceGroupFullPath": "*",
-            "deviceDisplayName": "*"
-          }],
-          "bigNumberItems": [{
-            "dataPointName": "CleanAvergeDuration",
-            "useCommaSeparators": false,
-            "bottomLabel": "minutes",
-            "rounding": 2,
-            "position": 1,
-            "rightLabel": "",
-            "colorThresholds": null
-          }]
+          "dataPoints": [
+            {
+              "dataPointName": "criticalAverageDuration95th",
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
+              "name": "averageDuration",
+              "aggregateFunction": "SUM",
+              "deviceGroupFullPath": "*",
+              "deviceDisplayName": "*"
+            }
+          ],
+          "bigNumberItems": [
+            {
+              "dataPointName": "CleanAvergeDuration",
+              "useCommaSeparators": false,
+              "bottomLabel": "minutes",
+              "rounding": 2,
+              "position": 1,
+              "rightLabel": "",
+              "colorThresholds": null,
+              "actions": []
+            }
+          ]
         },
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "P95 Duration: Critical",
         "description": "",
         "theme": "newSolidDarkBlue",
@@ -588,31 +639,40 @@
       },
       "config": {
         "bigNumberInfo": {
-          "virtualDataPoints": [{
-            "rpn": "if(un(averageDuration),0,averageDuration)",
-            "name": "CleanAvergeDuration"
-          }],
+          "virtualDataPoints": [
+            {
+              "rpn": "if(un(averageDuration),0,averageDuration)",
+              "name": "CleanAvergeDuration"
+            }
+          ],
           "counters": [],
-          "dataPoints": [{
-            "dataPointName": "errorAverageDuration95th",
-            "instanceName": "*",
-            "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
-            "name": "averageDuration",
-            "aggregateFunction": "SUM",
-            "deviceGroupFullPath": "*",
-            "deviceDisplayName": "*"
-          }],
-          "bigNumberItems": [{
-            "dataPointName": "CleanAvergeDuration",
-            "useCommaSeparators": false,
-            "bottomLabel": "minutes",
-            "rounding": 2,
-            "position": 1,
-            "rightLabel": "",
-            "colorThresholds": null
-          }]
+          "dataPoints": [
+            {
+              "dataPointName": "errorAverageDuration95th",
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
+              "name": "averageDuration",
+              "aggregateFunction": "SUM",
+              "deviceGroupFullPath": "*",
+              "deviceDisplayName": "*"
+            }
+          ],
+          "bigNumberItems": [
+            {
+              "dataPointName": "CleanAvergeDuration",
+              "useCommaSeparators": false,
+              "bottomLabel": "minutes",
+              "rounding": 2,
+              "position": 1,
+              "rightLabel": "",
+              "colorThresholds": null,
+              "actions": []
+            }
+          ]
         },
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "P95 Duration: Error",
         "description": "",
         "theme": "newSolidDarkBlue",
@@ -631,31 +691,40 @@
       },
       "config": {
         "bigNumberInfo": {
-          "virtualDataPoints": [{
-            "rpn": "if(un(averageDuration),0,averageDuration)",
-            "name": "CleanAvergeDuration"
-          }],
+          "virtualDataPoints": [
+            {
+              "rpn": "if(un(averageDuration),0,averageDuration)",
+              "name": "CleanAvergeDuration"
+            }
+          ],
           "counters": [],
-          "dataPoints": [{
-            "dataPointName": "averageDuration95th",
-            "instanceName": "*",
-            "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
-            "name": "averageDuration",
-            "aggregateFunction": "SUM",
-            "deviceGroupFullPath": "*",
-            "deviceDisplayName": "*"
-          }],
-          "bigNumberItems": [{
-            "dataPointName": "CleanAvergeDuration",
-            "useCommaSeparators": false,
-            "bottomLabel": "minutes",
-            "rounding": 2,
-            "position": 1,
-            "rightLabel": "",
-            "colorThresholds": null
-          }]
+          "dataPoints": [
+            {
+              "dataPointName": "averageDuration95th",
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
+              "name": "averageDuration",
+              "aggregateFunction": "SUM",
+              "deviceGroupFullPath": "*",
+              "deviceDisplayName": "*"
+            }
+          ],
+          "bigNumberItems": [
+            {
+              "dataPointName": "CleanAvergeDuration",
+              "useCommaSeparators": false,
+              "bottomLabel": "minutes",
+              "rounding": 2,
+              "position": 1,
+              "rightLabel": "",
+              "colorThresholds": null,
+              "actions": []
+            }
+          ]
         },
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "P95 Duration: Overall",
         "description": "",
         "theme": "newSolidDarkBlue",
@@ -674,31 +743,40 @@
       },
       "config": {
         "bigNumberInfo": {
-          "virtualDataPoints": [{
-            "rpn": "if(un(averageDuration),0,averageDuration)",
-            "name": "CleanAvergeDuration"
-          }],
+          "virtualDataPoints": [
+            {
+              "rpn": "if(un(averageDuration),0,averageDuration)",
+              "name": "CleanAvergeDuration"
+            }
+          ],
           "counters": [],
-          "dataPoints": [{
-            "dataPointName": "warnAverageDuration95th",
-            "instanceName": "*",
-            "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
-            "name": "averageDuration",
-            "aggregateFunction": "SUM",
-            "deviceGroupFullPath": "*",
-            "deviceDisplayName": "*"
-          }],
-          "bigNumberItems": [{
-            "dataPointName": "CleanAvergeDuration",
-            "useCommaSeparators": false,
-            "bottomLabel": "minutes",
-            "rounding": 2,
-            "position": 1,
-            "rightLabel": "",
-            "colorThresholds": null
-          }]
+          "dataPoints": [
+            {
+              "dataPointName": "warnAverageDuration95th",
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
+              "name": "averageDuration",
+              "aggregateFunction": "SUM",
+              "deviceGroupFullPath": "*",
+              "deviceDisplayName": "*"
+            }
+          ],
+          "bigNumberItems": [
+            {
+              "dataPointName": "CleanAvergeDuration",
+              "useCommaSeparators": false,
+              "bottomLabel": "minutes",
+              "rounding": 2,
+              "position": 1,
+              "rightLabel": "",
+              "colorThresholds": null,
+              "actions": []
+            }
+          ]
         },
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "P95 Duration: Warning",
         "description": "",
         "theme": "newSolidDarkBlue",
@@ -717,6 +795,8 @@
       },
       "config": {
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "Portal Wide: Overall Duration - Average (Current Period)",
         "description": "",
         "theme": "newBorderDarkBlue",
@@ -726,32 +806,33 @@
           "minValue": "NaN",
           "topX": 0,
           "maxValue": "NaN",
-          "dataPoints": [{
-            "dataPointName": "averageDuration",
-            "instanceId": null,
-            "instanceName": {
-              "isGlob": true,
-              "value": "*"
-            },
-            "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
-            "consolidateFunction": "average",
-            "display": {
-              "color": "Auto",
-              "legend": "Overall Average Duration",
-              "type": "stack",
-              "option": "custom"
-            },
-            "name": "averageDuration",
-            "aggregateFunction": "AVERAGE",
-            "deviceDisplayName": {
-              "isGlob": true,
-              "value": "*"
-            },
-            "deviceGroupFullPath": {
-              "isGlob": true,
-              "value": "*"
+          "dataPoints": [
+            {
+              "dataPointName": "averageDuration",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": "Auto",
+                "legend": "Overall Average Duration",
+                "type": "stack",
+                "option": "custom"
+              },
+              "name": "averageDuration",
+              "aggregateFunction": "AVERAGE",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "*"
+              }
             }
-          }],
+          ],
           "verticalLabel": "minutes",
           "aggregate": true,
           "desc": true,
@@ -772,6 +853,8 @@
       },
       "config": {
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "Portal Wide: Overall Duration - 95th Percentile (Current Period)",
         "description": "",
         "theme": "newBorderDarkBlue",
@@ -781,32 +864,33 @@
           "minValue": "NaN",
           "topX": 0,
           "maxValue": "NaN",
-          "dataPoints": [{
-            "dataPointName": "averageDuration95th",
-            "instanceId": null,
-            "instanceName": {
-              "isGlob": true,
-              "value": "*"
-            },
-            "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
-            "consolidateFunction": "average",
-            "display": {
-              "color": "Auto",
-              "legend": "Overall P95 Duration",
-              "type": "stack",
-              "option": "custom"
-            },
-            "name": "averageDuration95th",
-            "aggregateFunction": "AVERAGE",
-            "deviceDisplayName": {
-              "isGlob": true,
-              "value": "*"
-            },
-            "deviceGroupFullPath": {
-              "isGlob": true,
-              "value": "*"
+          "dataPoints": [
+            {
+              "dataPointName": "averageDuration95th",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": "Auto",
+                "legend": "Overall P95 Duration",
+                "type": "stack",
+                "option": "custom"
+              },
+              "name": "averageDuration95th",
+              "aggregateFunction": "AVERAGE",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "*"
+              }
             }
-          }],
+          ],
           "verticalLabel": "minutes",
           "aggregate": true,
           "desc": true,
@@ -820,92 +904,6 @@
     },
     {
       "position": {
-        "col": 3,
-        "sizex": 2,
-        "row": 1,
-        "sizey": 2
-      },
-      "config": {
-        "bigNumberInfo": {
-          "virtualDataPoints": [{
-            "rpn": "if(un(alertSize),0,alertSize)",
-            "name": "CleanAlertSize"
-          }],
-          "counters": [],
-          "dataPoints": [{
-            "dataPointName": "alertSize",
-            "instanceName": "*",
-            "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
-            "name": "alertSize",
-            "aggregateFunction": "SUM",
-            "deviceGroupFullPath": "*",
-            "deviceDisplayName": "*"
-          }],
-          "bigNumberItems": [{
-            "dataPointName": "CleanAlertSize",
-            "useCommaSeparators": false,
-            "bottomLabel": "resolved alerts",
-            "rounding": 0,
-            "position": 1,
-            "rightLabel": "",
-            "colorThresholds": null
-          }]
-        },
-        "displaySettings": {},
-        "name": "Portal: Resolved Alerts",
-        "description": "",
-        "theme": "newSolidDarkBlue",
-        "interval": 3,
-        "type": "bigNumber",
-        "timescale": "day",
-        "version": 2
-      }
-    },
-    {
-      "position": {
-        "col": 5,
-        "sizex": 4,
-        "row": 3,
-        "sizey": 4
-      },
-      "config": {
-        "displaySettings": {},
-        "name": "Top 10 Highest Duration by Device - 95th Percentile (Current Period)",
-        "description": "",
-        "theme": "newSolidDarkBlue",
-        "interval": 3,
-        "type": "pieChart",
-        "timescale": "day",
-        "pieChartInfo": {
-          "maxSlicesCanBeShown": 10,
-          "virtualDataPoints": [],
-          "showLabelsAndLinesOnPC": true,
-          "counters": [],
-          "dataPoints": [{
-            "dataPointName": "averageDuration95th",
-            "top10": true,
-            "instanceName": "*",
-            "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
-            "name": "averageDuration",
-            "aggregateFunction": "SUM",
-            "deviceGroupFullPath": "##defaultResourceGroup##",
-            "deviceDisplayName": "##defaultResourceName##",
-            "aggregate": false
-          }],
-          "hideZeroPercentSlices": true,
-          "groupRemainingAsOthers": true,
-          "pieChartItems": [{
-            "dataPointName": "averageDuration",
-            "color": "auto",
-            "legend": "##INSTANCE##"
-          }],
-          "title": "Top 10 Highest Duration by Device - 95th Percentile (Current Period)"
-        },
-        "version": 2
-      }
-    },
-    {
-      "position": {
         "col": 1,
         "sizex": 6,
         "row": 27,
@@ -913,6 +911,8 @@
       },
       "config": {
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "Top Devices by Alert Duration - Average (Current Period)",
         "description": "",
         "theme": "newBorderDarkBlue",
@@ -922,32 +922,33 @@
           "minValue": "NaN",
           "topX": 100,
           "maxValue": "NaN",
-          "dataPoints": [{
-            "dataPointName": "averageDuration",
-            "instanceId": null,
-            "instanceName": {
-              "isGlob": true,
-              "value": "*"
-            },
-            "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
-            "consolidateFunction": "average",
-            "display": {
-              "color": "Auto",
-              "legend": "##INSTANCE##",
-              "type": "stack",
-              "option": "custom"
-            },
-            "name": "averageDuration",
-            "aggregateFunction": "SUM",
-            "deviceDisplayName": {
-              "isGlob": true,
-              "value": "*"
-            },
-            "deviceGroupFullPath": {
-              "isGlob": true,
-              "value": "*"
+          "dataPoints": [
+            {
+              "dataPointName": "averageDuration",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": "Auto",
+                "legend": "##INSTANCE##",
+                "type": "stack",
+                "option": "custom"
+              },
+              "name": "averageDuration",
+              "aggregateFunction": "SUM",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "*"
+              }
             }
-          }],
+          ],
           "verticalLabel": "minutes",
           "aggregate": false,
           "desc": true,
@@ -968,6 +969,8 @@
       },
       "config": {
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "Top Devices by Duration - 95th Percentile (Current Period)",
         "description": "",
         "theme": "newBorderDarkBlue",
@@ -977,32 +980,33 @@
           "minValue": "NaN",
           "topX": 100,
           "maxValue": "NaN",
-          "dataPoints": [{
-            "dataPointName": "averageDuration95th",
-            "instanceId": null,
-            "instanceName": {
-              "isGlob": true,
-              "value": "*"
-            },
-            "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
-            "consolidateFunction": "average",
-            "display": {
-              "color": "Auto",
-              "legend": "##INSTANCE##",
-              "type": "stack",
-              "option": "custom"
-            },
-            "name": "averageDuration95th",
-            "aggregateFunction": "SUM",
-            "deviceDisplayName": {
-              "isGlob": true,
-              "value": "*"
-            },
-            "deviceGroupFullPath": {
-              "isGlob": true,
-              "value": "*"
+          "dataPoints": [
+            {
+              "dataPointName": "averageDuration95th",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": "Auto",
+                "legend": "##INSTANCE##",
+                "type": "stack",
+                "option": "custom"
+              },
+              "name": "averageDuration95th",
+              "aggregateFunction": "SUM",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "*"
+              }
             }
-          }],
+          ],
           "verticalLabel": "minutes",
           "aggregate": false,
           "desc": true,
@@ -1023,31 +1027,40 @@
       },
       "config": {
         "bigNumberInfo": {
-          "virtualDataPoints": [{
-            "rpn": "if(un(duration),0,duration)",
-            "name": "Cleanduration"
-          }],
+          "virtualDataPoints": [
+            {
+              "rpn": "if(un(duration),0,duration)",
+              "name": "Cleanduration"
+            }
+          ],
           "counters": [],
-          "dataPoints": [{
-            "dataPointName": "warnLongestAlertDuration",
-            "instanceName": "*",
-            "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
-            "name": "duration",
-            "aggregateFunction": "MAX",
-            "deviceGroupFullPath": "*",
-            "deviceDisplayName": "*"
-          }],
-          "bigNumberItems": [{
-            "dataPointName": "Cleanduration",
-            "useCommaSeparators": false,
-            "bottomLabel": "minutes",
-            "rounding": 2,
-            "position": 1,
-            "rightLabel": "",
-            "colorThresholds": null
-          }]
+          "dataPoints": [
+            {
+              "dataPointName": "warnLongestAlertDuration",
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
+              "name": "duration",
+              "aggregateFunction": "MAX",
+              "deviceGroupFullPath": "*",
+              "deviceDisplayName": "*"
+            }
+          ],
+          "bigNumberItems": [
+            {
+              "dataPointName": "Cleanduration",
+              "useCommaSeparators": false,
+              "bottomLabel": "minutes",
+              "rounding": 2,
+              "position": 1,
+              "rightLabel": "",
+              "colorThresholds": null,
+              "actions": []
+            }
+          ]
         },
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "Warning: Longest Duration",
         "description": "",
         "theme": "newSolidDarkBlue",
@@ -1066,6 +1079,8 @@
       },
       "config": {
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "Top 10 Highest Duration by Device Group - 95th Percentile (Current Period)",
         "description": "",
         "theme": "newSolidDarkBlue",
@@ -1077,24 +1092,28 @@
           "virtualDataPoints": [],
           "showLabelsAndLinesOnPC": true,
           "counters": [],
-          "dataPoints": [{
-            "dataPointName": "averageDuration95th",
-            "top10": true,
-            "instanceName": "*",
-            "dataSourceFullName": "LogicMonitor Device Group Alert Statistics (LogicMonitor_DeviceGroup_Alert_Statistics)",
-            "name": "averageDuration",
-            "aggregateFunction": "SUM",
-            "deviceGroupFullPath": "##defaultResourceGroup##",
-            "deviceDisplayName": "##defaultResourceName##",
-            "aggregate": false
-          }],
+          "dataPoints": [
+            {
+              "dataPointName": "averageDuration95th",
+              "top10": true,
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Device Group Alert Statistics (LogicMonitor_DeviceGroup_Alert_Statistics)",
+              "name": "averageDuration",
+              "aggregateFunction": "SUM",
+              "deviceGroupFullPath": "##defaultResourceGroup##",
+              "deviceDisplayName": "##defaultResourceName##",
+              "aggregate": false
+            }
+          ],
           "hideZeroPercentSlices": true,
           "groupRemainingAsOthers": true,
-          "pieChartItems": [{
-            "dataPointName": "averageDuration",
-            "color": "Auto",
-            "legend": "##INSTANCE##"
-          }],
+          "pieChartItems": [
+            {
+              "dataPointName": "averageDuration",
+              "color": "Auto",
+              "legend": "##INSTANCE##"
+            }
+          ],
           "title": "Top 10 Highest Duration by Device Group - 95th Percentile (Current Period)"
         },
         "version": 2
@@ -1211,6 +1230,7 @@
             "roundingDecimal": 0
           }
         ],
+        "supportCustomProperty": false,
         "description": "",
         "forecast": {
           "severity": "warn",
@@ -1219,13 +1239,16 @@
           "algorithm": "Linear"
         },
         "type": "dynamicTable",
-        "rows": [{
-          "instanceName": "*",
-          "label": "##INSTANCE##",
-          "deviceDisplayName": "##defaultResourceName##",
-          "groupFullPath": "##defaultResourceGroup##"
-        }],
+        "rows": [
+          {
+            "instanceName": "*",
+            "label": "##INSTANCE##",
+            "deviceDisplayName": "##defaultResourceName##",
+            "groupFullPath": "##defaultResourceGroup##"
+          }
+        ],
         "version": 2,
+        "isSupportCustomProperty": false,
         "topX": -1,
         "dataSourceFullName": "LogicMonitor Device Group Alert Statistics (LogicMonitor_DeviceGroup_Alert_Statistics)",
         "sortOrder": "descending",
@@ -1364,6 +1387,7 @@
             "roundingDecimal": 2
           }
         ],
+        "supportCustomProperty": false,
         "description": "",
         "forecast": {
           "severity": "warn",
@@ -1372,13 +1396,16 @@
           "algorithm": "Linear"
         },
         "type": "dynamicTable",
-        "rows": [{
-          "instanceName": "*",
-          "label": "##INSTANCE##",
-          "deviceDisplayName": "##defaultResourceName##",
-          "groupFullPath": "##defaultResourceGroup##"
-        }],
+        "rows": [
+          {
+            "instanceName": "*",
+            "label": "##INSTANCE##",
+            "deviceDisplayName": "##defaultResourceName##",
+            "groupFullPath": "##defaultResourceGroup##"
+          }
+        ],
         "version": 2,
+        "isSupportCustomProperty": false,
         "topX": -1,
         "dataSourceFullName": "LogicMonitor Device Group Alert Statistics (LogicMonitor_DeviceGroup_Alert_Statistics)",
         "sortOrder": "descending",
@@ -1397,6 +1424,8 @@
       },
       "config": {
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "Top Device Groups by Alert Duration - Average (Current Period)",
         "description": "",
         "theme": "newBorderDarkBlue",
@@ -1406,32 +1435,33 @@
           "minValue": "NaN",
           "topX": 100,
           "maxValue": "NaN",
-          "dataPoints": [{
-            "dataPointName": "averageDuration",
-            "instanceId": null,
-            "instanceName": {
-              "isGlob": true,
-              "value": "*"
-            },
-            "dataSourceFullName": "LogicMonitor Device Group Alert Statistics (LogicMonitor_DeviceGroup_Alert_Statistics)",
-            "consolidateFunction": "average",
-            "display": {
-              "color": "Auto",
-              "legend": "##INSTANCE##",
-              "type": "stack",
-              "option": "custom"
-            },
-            "name": "averageDuration",
-            "aggregateFunction": "SUM",
-            "deviceDisplayName": {
-              "isGlob": true,
-              "value": "*"
-            },
-            "deviceGroupFullPath": {
-              "isGlob": true,
-              "value": "*"
+          "dataPoints": [
+            {
+              "dataPointName": "averageDuration",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "LogicMonitor Device Group Alert Statistics (LogicMonitor_DeviceGroup_Alert_Statistics)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": "Auto",
+                "legend": "##INSTANCE##",
+                "type": "stack",
+                "option": "custom"
+              },
+              "name": "averageDuration",
+              "aggregateFunction": "SUM",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "*"
+              }
             }
-          }],
+          ],
           "verticalLabel": "minutes",
           "aggregate": false,
           "desc": true,
@@ -1452,6 +1482,8 @@
       },
       "config": {
         "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
         "name": "Top Device Groups by Duration - 95th Percentile (Current Period)",
         "description": "",
         "theme": "newBorderDarkBlue",
@@ -1461,32 +1493,33 @@
           "minValue": "NaN",
           "topX": 100,
           "maxValue": "NaN",
-          "dataPoints": [{
-            "dataPointName": "averageDuration95th",
-            "instanceId": null,
-            "instanceName": {
-              "isGlob": true,
-              "value": "*"
-            },
-            "dataSourceFullName": "LogicMonitor Device Group Alert Statistics (LogicMonitor_DeviceGroup_Alert_Statistics)",
-            "consolidateFunction": "average",
-            "display": {
-              "color": "Auto",
-              "legend": "##INSTANCE##",
-              "type": "stack",
-              "option": "custom"
-            },
-            "name": "averageDuration95th",
-            "aggregateFunction": "SUM",
-            "deviceDisplayName": {
-              "isGlob": true,
-              "value": "*"
-            },
-            "deviceGroupFullPath": {
-              "isGlob": true,
-              "value": "*"
+          "dataPoints": [
+            {
+              "dataPointName": "averageDuration95th",
+              "instanceName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "dataSourceFullName": "LogicMonitor Device Group Alert Statistics (LogicMonitor_DeviceGroup_Alert_Statistics)",
+              "consolidateFunction": "average",
+              "display": {
+                "color": "Auto",
+                "legend": "##INSTANCE##",
+                "type": "stack",
+                "option": "custom"
+              },
+              "name": "averageDuration95th",
+              "aggregateFunction": "SUM",
+              "deviceDisplayName": {
+                "isGlob": true,
+                "value": "*"
+              },
+              "deviceGroupFullPath": {
+                "isGlob": true,
+                "value": "*"
+              }
             }
-          }],
+          ],
           "verticalLabel": "minutes",
           "aggregate": false,
           "desc": true,
@@ -1495,6 +1528,176 @@
         },
         "type": "cgraph",
         "timescale": "7days",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "col": 3,
+        "sizex": 2,
+        "row": 1,
+        "sizey": 2
+      },
+      "config": {
+        "bigNumberInfo": {
+          "virtualDataPoints": [
+            {
+              "rpn": "if(un(criticalAlertSize),0,criticalAlertSize)",
+              "name": "cleanCriticalAlertSize"
+            },
+            {
+              "rpn": "if(un(alertSize),0,alertSize)",
+              "name": "cleanAlertSize"
+            },
+            {
+              "rpn": "if(un(warnAlertSize),0,warnAlertSize)",
+              "name": "cleanWarnAlertSize"
+            },
+            {
+              "rpn": "if(un(errorAlertSize),0,errorAlertSize)",
+              "name": "cleanErrorAlertSize"
+            }
+          ],
+          "counters": [],
+          "dataPoints": [
+            {
+              "dataPointName": "criticalAlertSize",
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
+              "name": "criticalAlertSize",
+              "aggregateFunction": "SUM",
+              "deviceGroupFullPath": "##defaultResourceGroup##",
+              "deviceDisplayName": "*"
+            },
+            {
+              "dataPointName": "errorAlertSize",
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
+              "name": "errorAlertSize",
+              "aggregateFunction": "SUM",
+              "deviceGroupFullPath": "##defaultResourceGroup##",
+              "deviceDisplayName": "*"
+            },
+            {
+              "dataPointName": "warnAlertSize",
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
+              "name": "warnAlertSize",
+              "aggregateFunction": "SUM",
+              "deviceGroupFullPath": "##defaultResourceGroup##",
+              "deviceDisplayName": "*"
+            },
+            {
+              "dataPointName": "alertSize",
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Portal Alert Statistics (LogicMonitor_Portal_Alert_Statistics)",
+              "name": "alertSize",
+              "aggregateFunction": "SUM",
+              "deviceGroupFullPath": "##defaultResourceGroup##",
+              "deviceDisplayName": "*"
+            }
+          ],
+          "bigNumberItems": [
+            {
+              "dataPointName": "cleanAlertSize",
+              "useCommaSeparators": false,
+              "bottomLabel": "total alerts",
+              "rounding": 0,
+              "position": 1,
+              "rightLabel": "",
+              "colorThresholds": null,
+              "actions": []
+            },
+            {
+              "dataPointName": "cleanCriticalAlertSize",
+              "useCommaSeparators": false,
+              "bottomLabel": "critical alerts",
+              "rounding": 0,
+              "position": 2,
+              "rightLabel": "",
+              "colorThresholds": null,
+              "actions": []
+            },
+            {
+              "dataPointName": "cleanErrorAlertSize",
+              "useCommaSeparators": false,
+              "bottomLabel": "error alerts",
+              "rounding": 0,
+              "position": 3,
+              "rightLabel": "",
+              "colorThresholds": null,
+              "actions": []
+            },
+            {
+              "dataPointName": "cleanWarnAlertSize",
+              "useCommaSeparators": false,
+              "bottomLabel": "warning alerts",
+              "rounding": 0,
+              "position": 4,
+              "rightLabel": "",
+              "colorThresholds": null,
+              "actions": []
+            }
+          ]
+        },
+        "displaySettings": {},
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
+        "name": "Resolved Alert Totals",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "type": "bigNumber",
+        "timescale": "day",
+        "version": 2
+      }
+    },
+    {
+      "position": {
+        "sizex": 4,
+        "sizey": 4
+      },
+      "config": {
+        "displaySettings": {
+          "visualizationType": "pie"
+        },
+        "isSupportCustomProperty": false,
+        "supportCustomProperty": false,
+        "name": "Top 10 Highest Duration by Device - 95th Percentile (Current Period)",
+        "description": "",
+        "theme": "newSolidDarkBlue",
+        "interval": 3,
+        "type": "pieChart",
+        "timescale": "day",
+        "pieChartInfo": {
+          "maxSlicesCanBeShown": 10,
+          "virtualDataPoints": [],
+          "showLabelsAndLinesOnPC": true,
+          "counters": [],
+          "dataPoints": [
+            {
+              "dataPointName": "averageDuration95th",
+              "top10": true,
+              "instanceName": "*",
+              "dataSourceFullName": "LogicMonitor Device Alert Statistics (LogicMonitor_Device_Alert_Statistics)",
+              "name": "averageDuration",
+              "aggregateFunction": "max",
+              "deviceGroupFullPath": "##defaultResourceGroup##",
+              "deviceDisplayName": "##defaultResourceName##",
+              "aggregate": false
+            }
+          ],
+          "hideZeroPercentSlices": true,
+          "groupRemainingAsOthers": true,
+          "pieChartItems": [
+            {
+              "dataPointName": "averageDuration",
+              "color": "auto",
+              "legend": "##INSTANCE##"
+            }
+          ],
+          "title": "Top 10 Highest Duration by Device - 95th Percentile (Current Period)"
+        },
         "version": 2
       }
     }
