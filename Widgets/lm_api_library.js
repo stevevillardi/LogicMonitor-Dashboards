@@ -255,7 +255,7 @@ function buildFilter(filters) {
 	
 	return Object.entries(filters)
 		.filter(([key, value]) => value !== null && value !== undefined)
-		.map(([key, value]) => `${key}:${value}`)
+		.map(([key, value]) => `${key}:"${value}"`)
 		.join(',');
 }
 
