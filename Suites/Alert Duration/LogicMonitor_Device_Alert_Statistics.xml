@@ -23,7 +23,7 @@
         <wildcardwinscript>ad_script</wildcardwinscript>
         <wildcardwincmdline>type=&#34;embeded&#34; </wildcardwincmdline>
         <wildcardgroovyscript>/*******************************************************************************
- * © 2007-2023 - LogicMonitor, Inc. All rights reserved.
+ * © 2007-2025 - LogicMonitor, Inc. All rights reserved.
  ******************************************************************************/
 import groovy.json.*
 
